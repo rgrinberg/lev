@@ -106,6 +106,7 @@ CAMLprim value lev_io_stop(value v_io, value v_ev) {
   CAMLparam2(v_io, v_ev);
   ev_io *io = Ev_io_val(v_io);
   struct ev_loop *ev = (struct ev_loop *)Nativeint_val(v_ev);
+  caml_remove_generational_global_root((value *)(&(io->data)));
   ev_io_stop(ev, io);
   CAMLreturn(Val_unit);
 }
