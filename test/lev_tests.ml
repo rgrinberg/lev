@@ -51,17 +51,6 @@ let%expect_test "read from pipe" =
   Io.start io_r loop;
   Io.start io_w loop;
   ignore (Lev.Loop.run loop `No_wait);
-  [%expect.unreachable]
-  [@@expect.uncaught_exn
-    {|
-  (* CR expect_test_collector: This test expectation appears to contain a backtrace.
-     This is strongly discouraged as backtraces are fragile.
-     Please change this test to not include a backtrace. *)
-
-  "Assert_failure src/lev.ml:48:20"
-  Raised at Lev.Io.Event.Set.mem in file "src/lev.ml", line 48, characters 20-32
-  Called from Lev_tests.(fun) in file "test/lev_tests.ml", line 43, characters 15-46
-  Called from Lev.Loop.run in file "src/lev.ml", line 16, characters 19-24
-  Called from Lev.Loop.run in file "src/lev.ml", line 16, characters 19-24
-  Called from Lev_tests.(fun) in file "test/lev_tests.ml", line 53, characters 9-37
-  Called from Expect_test_collector.Make.Instance.exec in file "collector/expect_test_collector.ml", line 244, characters 12-19 |}]
+  [%expect{|
+    written to pipe
+    read char c |}]

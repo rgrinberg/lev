@@ -42,14 +42,23 @@ module Io = struct
   module Event = struct
     type t = Read | Write
 
+    external read : unit -> int = "lev_io_read_code"
+
+    let read = read ()
+
+    external write : unit -> int = "lev_io_write_code"
+
+    let write = write ()
+
+    let to_int = function Read -> read | Write -> write
+
     module Set = struct
       type t = int
 
-      let mem _ _ = assert false
+      let mem t c = t land to_int c <> 0
 
-      external create : bool -> bool -> t = "lev_io_event_create"
-
-      let create ?(read = false) ?(write = false) () = create read write
+      let create ?(read = false) ?(write = false) () =
+        (if read then to_int Read else 0) lor if write then to_int Write else 0
     end
   end
 

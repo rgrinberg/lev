@@ -65,16 +65,14 @@ static void lev_io_cb(EV_P_ ev_io *w, int revents) {
   caml_release_runtime_system();
 }
 
-CAMLprim value lev_io_event_create(value v_read, value v_write) {
-  CAMLparam2(v_read, v_write);
-  int flags = 0;
-  if (Val_bool(v_read)) {
-    flags |= EV_READ;
-  }
-  if (Val_bool(v_write)) {
-    flags |= EV_WRITE;
-  }
-  CAMLreturn(Val_int(flags));
+CAMLprim value lev_io_read_code(value v_unit) {
+  CAMLparam1(v_unit);
+  CAMLreturn(Val_int(EV_READ));
+}
+
+CAMLprim value lev_io_write_code(value v_unit) {
+  CAMLparam1(v_unit);
+  CAMLreturn(Val_int(EV_WRITE));
 }
 
 CAMLprim value lev_io_fd(value v_io) {
