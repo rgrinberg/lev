@@ -58,7 +58,7 @@ module Io = struct
   external fd : t -> Unix.file_descr = "lev_io_fd"
 
   external create :
-    (Loop.t -> Event.Set.t -> unit) -> Unix.file_descr -> int -> t
+    (t -> Loop.t -> Event.Set.t -> unit) -> Unix.file_descr -> int -> t
     = "lev_io_create"
 
   external start : t -> Loop.t -> unit = "lev_io_start"

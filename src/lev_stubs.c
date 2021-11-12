@@ -85,12 +85,13 @@ CAMLprim value lev_io_fd(value v_io) {
 
 CAMLprim value lev_io_create(value v_cb, value v_fd, value v_flags) {
   CAMLparam3(v_cb, v_fd, v_flags);
-  CAMLlocal1(v_io);
+  CAMLlocal2(v_io, v_cb_applied);
   ev_io *io = caml_stat_alloc(sizeof(ev_io));
   ev_io_init(io, lev_io_cb, Int_val(v_fd), Int_val(v_flags));
   v_io = caml_alloc_custom(&watcher_ops, sizeof(struct ev_io *), 0, 1);
   Ev_io_val(v_io) = io;
-  io->data = (void *)v_cb;
+  v_cb_applied = caml_callback(v_cb, v_io);
+  io->data = (void *)v_cb_applied;
   caml_register_generational_global_root((value *)(&(io->data)));
   CAMLreturn(v_io);
 }

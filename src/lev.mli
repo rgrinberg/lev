@@ -86,7 +86,7 @@ module Io : sig
   val fd : t -> Unix.file_descr
 
   val create :
-    (Loop.t -> Event.Set.t -> unit) -> Unix.file_descr -> Event.Set.t -> t
+    (t -> Loop.t -> Event.Set.t -> unit) -> Unix.file_descr -> Event.Set.t -> t
 end
 
 (* module Timer : sig *)
