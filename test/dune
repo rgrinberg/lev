@@ -1,0 +1,6 @@
+(library
+ (name lev_tests)
+ (libraries lev)
+ (inline_tests)
+ (preprocess
+  (pps ppx_expect)))
