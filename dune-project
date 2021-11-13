@@ -9,6 +9,8 @@
 (authors "Rudi Grinberg <me@rgrinberg.com>")
 (source (github rgrinberg/lev))
 
+(implicit_transitive_deps false)
+
 (package
  (synopsis "bindings to libev")
  (description "low level bindings to libev")
