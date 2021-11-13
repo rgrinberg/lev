@@ -51,6 +51,18 @@ let%expect_test "read from pipe" =
   Io.start io_r loop;
   Io.start io_w loop;
   ignore (Lev.Loop.run loop `No_wait);
-  [%expect{|
+  [%expect {|
     written to pipe
     read char c |}]
+
+let%expect_test "timer" =
+  let loop = Loop.create () in
+  let timer =
+    Timer.create ~after:0.02 (fun timer loop ->
+        print_endline "fired timer";
+        Timer.stop timer loop)
+  in
+  Timer.start timer loop;
+  ignore (Lev.Loop.run loop `No_wait);
+  [%expect {|
+    fired timer |}]

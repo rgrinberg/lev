@@ -37,14 +37,8 @@ module Loop : sig
   val break : t -> [ `Cancel | `One | `All ] -> unit
 end
 
-module Status : sig
-  type t = Pending | Active
-end
-
 module type Watcher = sig
   type t
-
-  val status : t -> Status.t
 
   val start : t -> Loop.t -> unit
 
@@ -89,17 +83,15 @@ module Io : sig
     (t -> Loop.t -> Event.Set.t -> unit) -> Unix.file_descr -> Event.Set.t -> t
 end
 
-(* module Timer : sig *)
-(*   include Watcher *)
+module Timer : sig
+  include Watcher
 
-(*   val create : ?repeat:float -> after:float -> unit *)
+  val create : ?repeat:float -> after:float -> (t -> Loop.t -> unit) -> t
 
-(*   val remaining : t -> Loop.t -> Timestamp.t *)
+  val remaining : t -> Loop.t -> Timestamp.t
 
-(*   val stop : t -> Loop.t -> unit *)
-
-(*   val again : t -> Loop.t -> unit *)
-(* end *)
+  val again : t -> Loop.t -> unit
+end
 
 (* module Stat : sig *)
 (*   type t *)

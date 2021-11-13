@@ -20,18 +20,12 @@ module Loop = struct
   let break _ _ = ()
 end
 
-module Status = struct
-  type t = Pending | Active
-end
-
 module Timestamp = struct
-  type t
+  type t = float
 end
 
 module type Watcher = sig
   type t
-
-  val status : t -> Status.t
 
   val start : t -> Loop.t -> unit
 
@@ -73,6 +67,21 @@ module Io = struct
   external start : t -> Loop.t -> unit = "lev_io_start"
 
   external stop : t -> Loop.t -> unit = "lev_io_stop"
+end
 
-  let status _ = assert false
+module Timer = struct
+  type t
+
+  external create : (t -> Loop.t -> unit) -> float -> float -> t
+    = "lev_timer_create"
+
+  let create ?(repeat = 0.) ~after f = create f repeat after
+
+  external remaining : t -> Loop.t -> Timestamp.t = "lev_timer_remaining"
+
+  external stop : t -> Loop.t -> unit = "lev_timer_stop"
+
+  external start : t -> Loop.t -> unit = "lev_timer_start"
+
+  external again : t -> Loop.t -> unit = "lev_timer_again"
 end

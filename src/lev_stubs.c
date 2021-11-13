@@ -10,13 +10,17 @@
 #include <caml/mlvalues.h>
 #include <caml/threads.h>
 
+#define Ev_watcher_val(v) *(struct ev_watcher **)Data_custom_val(v)
 #define Ev_io_val(v) *(struct ev_io **)Data_custom_val(v)
+#define Ev_timer_val(v) *(struct ev_timer **)Data_custom_val(v)
 
 static int compare_watchers(value a, value b) {
-  return (int)((char *)Ev_io_val(a) - (char *)Ev_io_val(b));
+  return (int)((char *)Ev_watcher_val(a) - (char *)Ev_watcher_val(b));
 }
 
-static long hash_watcher(value watcher) { return (long)Ev_io_val(watcher); }
+static long hash_watcher(value watcher) {
+  return (long)Ev_watcher_val(watcher);
+}
 
 static struct custom_operations watcher_ops = {
     // TODO free
@@ -65,6 +69,12 @@ static void lev_io_cb(EV_P_ ev_io *w, int revents) {
   caml_release_runtime_system();
 }
 
+static void lev_timer_cb(EV_P_ ev_timer *w, int revents) {
+  caml_acquire_runtime_system();
+  caml_callback((value)w->data, caml_copy_nativeint((intnat)loop));
+  caml_release_runtime_system();
+}
+
 CAMLprim value lev_io_read_code(value v_unit) {
   CAMLparam1(v_unit);
   CAMLreturn(Val_int(EV_READ));
@@ -108,5 +118,50 @@ CAMLprim value lev_io_stop(value v_io, value v_ev) {
   struct ev_loop *ev = (struct ev_loop *)Nativeint_val(v_ev);
   caml_remove_generational_global_root((value *)(&(io->data)));
   ev_io_stop(ev, io);
+  CAMLreturn(Val_unit);
+}
+
+CAMLprim value lev_timer_create(value v_cb, value v_after, value v_repeat) {
+  CAMLparam3(v_cb, v_after, v_repeat);
+  CAMLlocal2(v_timer, v_cb_applied);
+  ev_timer *timer = caml_stat_alloc(sizeof(ev_timer));
+  ev_timer_init(timer, lev_timer_cb, Double_val(v_after), Double_val(v_repeat));
+  v_timer = caml_alloc_custom(&watcher_ops, sizeof(struct ev_timer *), 0, 1);
+  Ev_timer_val(v_timer) = timer;
+  v_cb_applied = caml_callback(v_cb, v_timer);
+  timer->data = (void *)v_cb_applied;
+  caml_register_generational_global_root((value *)(&(timer->data)));
+  CAMLreturn(v_timer);
+}
+
+CAMLprim value lev_timer_start(value v_timer, value v_ev) {
+  CAMLparam2(v_timer, v_ev);
+  ev_timer *timer = Ev_timer_val(v_timer);
+  struct ev_loop *ev = (struct ev_loop *)Nativeint_val(v_ev);
+  ev_timer_start(ev, timer);
+  CAMLreturn(Val_unit);
+}
+
+CAMLprim value lev_timer_stop(value v_timer, value v_ev) {
+  CAMLparam2(v_timer, v_ev);
+  ev_timer *timer = Ev_timer_val(v_timer);
+  struct ev_loop *ev = (struct ev_loop *)Nativeint_val(v_ev);
+  caml_remove_generational_global_root((value *)(&(timer->data)));
+  ev_timer_stop(ev, timer);
+  CAMLreturn(Val_unit);
+}
+
+CAMLprim value lev_timer_remaining(value v_timer, value v_ev) {
+  CAMLparam2(v_timer, v_ev);
+  ev_timer *timer = Ev_timer_val(v_timer);
+  struct ev_loop *ev = (struct ev_loop *)Nativeint_val(v_ev);
+  CAMLreturn(ev_timer_remaining(ev, timer));
+}
+
+CAMLprim value lev_timer_again(value v_timer, value v_ev) {
+  CAMLparam2(v_timer, v_ev);
+  ev_timer *timer = Ev_timer_val(v_timer);
+  struct ev_loop *ev = (struct ev_loop *)Nativeint_val(v_ev);
+  ev_timer_again(ev, timer);
   CAMLreturn(Val_unit);
 }
