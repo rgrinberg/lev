@@ -16,4 +16,5 @@
  (description "low level bindings to libev")
  (name lev)
  (depends
-   base-unix))
+  (ppx_expect :with-test)
+  base-unix))
