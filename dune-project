@@ -14,4 +14,6 @@
 (package
  (synopsis "bindings to libev")
  (description "low level bindings to libev")
- (name lev))
+ (name lev)
+ (depends
+   base-unix))

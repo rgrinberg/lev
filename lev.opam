@@ -9,6 +9,7 @@ homepage: "https://github.com/rgrinberg/lev"
 bug-reports: "https://github.com/rgrinberg/lev/issues"
 depends: [
   "dune" {>= "2.9"}
+  "base-unix"
   "odoc" {with-doc}
 ]
 build: [
