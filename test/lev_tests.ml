@@ -10,6 +10,15 @@ let%expect_test "default" =
   ignore (Loop.default ());
   [%expect {||}]
 
+let%expect_test "now" =
+  let loop = Loop.default () in
+  let (_ : Timestamp.t) = Loop.now loop in
+  [%expect {||}]
+
+let%expect_test "sleep" =
+  Timestamp.sleep (Timestamp.of_float 0.1);
+  [%expect {||}]
+
 let%expect_test "create and run" =
   let ev = Loop.create () in
   (match Loop.run ev `No_wait with

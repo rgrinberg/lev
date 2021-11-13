@@ -45,6 +45,19 @@ CAMLprim value lev_ev_default(value v_unit) {
   CAMLreturn(caml_copy_nativeint((intnat)loop));
 }
 
+CAMLprim value lev_ev_now(value v_ev) {
+  CAMLparam1(v_ev);
+  struct ev_loop *loop = (struct ev_loop *)Nativeint_val(v_ev);
+  ev_tstamp now = ev_now(loop);
+  CAMLreturn(caml_copy_double(now));
+}
+
+CAMLprim value lev_sleep(value v_ts) {
+  CAMLparam1(v_ts);
+  ev_sleep(Double_val(v_ts));
+  CAMLreturn(Val_unit);
+}
+
 CAMLprim value lev_ev_create(value v_unit) {
   CAMLparam1(v_unit);
   struct ev_loop *loop = ev_loop_new(ev_recommended_backends());

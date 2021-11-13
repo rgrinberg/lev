@@ -16,8 +16,20 @@ Some things to keep in mind:
 
 val ev_version : unit -> int * int
 
+module Timestamp : sig
+  type t
+
+  val sleep : t -> unit
+
+  val of_float : float -> t
+
+  val to_float : t -> float
+end
+
 module Loop : sig
   type t
+
+  val now : t -> Timestamp.t
 
   val default : unit -> t
   (** Use this one unless you have a strong reason. The default event loop is
@@ -43,14 +55,6 @@ module type Watcher = sig
   val start : t -> Loop.t -> unit
 
   val stop : t -> Loop.t -> unit
-end
-
-module Timestamp : sig
-  type t
-
-  val of_float : float -> t
-
-  val to_float : t -> float
 end
 
 module Periodic : sig

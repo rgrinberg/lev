@@ -1,11 +1,23 @@
 external ev_version : unit -> int * int = "lev_version"
 
+module Timestamp = struct
+  type t = float
+
+  external sleep : t -> unit = "lev_sleep"
+
+  let to_float x = x
+
+  let of_float x = x
+end
+
 module Loop = struct
   type t
 
   external default : unit -> t = "lev_ev_default"
 
   external create : unit -> t = "lev_ev_create"
+
+  external now : t -> Timestamp.t = "lev_ev_now"
 
   let destroy _ = ()
 
@@ -18,14 +30,6 @@ module Loop = struct
   let depth _ = 0
 
   let break _ _ = ()
-end
-
-module Timestamp = struct
-  type t = float
-
-  let to_float x = x
-
-  let of_float x = x
 end
 
 module type Watcher = sig
