@@ -2,12 +2,6 @@
 
 (copy_files# ../vendor/{ev,ev_vars,ev_wrap}.h)
 
-(rule
- (with-stdout-to
-  config.h
-  (echo
-   "#define EV_MULTIPLICITY 1\n#define HAVE_SELECT 1\n#define HAVE_SYS_SELECT_H 1")))
-
 (library
  (public_name lev)
  (synopsis "libev bindings")
