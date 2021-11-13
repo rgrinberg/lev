@@ -149,3 +149,15 @@ module Cleanup = struct
 
   let create _ = assert false
 end
+
+module Stat = struct
+  type t
+
+  let start _ _ = assert false
+
+  let stop _ _ = assert false
+
+  let create ?interval _ ~path:_ =
+    ignore interval;
+    assert false
+end

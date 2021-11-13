@@ -101,9 +101,11 @@ module Timer : sig
   val again : t -> Loop.t -> unit
 end
 
-(* module Stat : sig *)
-(*   type t *)
-(* end *)
+module Stat : sig
+  include Watcher
+
+  val create : ?interval:Timestamp.t -> (Loop.t -> unit) -> path:string -> t
+end
 
 module Child : sig
   include Watcher
