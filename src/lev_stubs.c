@@ -13,6 +13,7 @@
 #define Ev_watcher_val(v) *(struct ev_watcher **)Data_custom_val(v)
 #define Ev_io_val(v) *(struct ev_io **)Data_custom_val(v)
 #define Ev_timer_val(v) *(struct ev_timer **)Data_custom_val(v)
+#define Ev_periodic_val(v) *(struct ev_periodic **)Data_custom_val(v)
 
 static int compare_watchers(value a, value b) {
   return (int)((char *)Ev_watcher_val(a) - (char *)Ev_watcher_val(b));
@@ -164,4 +165,21 @@ CAMLprim value lev_timer_again(value v_timer, value v_ev) {
   struct ev_loop *ev = (struct ev_loop *)Nativeint_val(v_ev);
   ev_timer_again(ev, timer);
   CAMLreturn(Val_unit);
+}
+
+CAMLprim value lev_periodic_create_regular(value v_cb, value v_offset,
+                                           value v_interval) {
+  caml_failwith("TODO");
+}
+
+CAMLprim value lev_periodic_create_custom(value v_cb, value v_reschedule) {
+  caml_failwith("TODO");
+}
+
+CAMLprim value lev_periodic_start(value v_periodic, value v_ev) {
+  caml_failwith("TODO");
+}
+
+CAMLprim value lev_periodic_stop(value v_periodic, value v_ev) {
+  caml_failwith("TODO");
 }

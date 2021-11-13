@@ -81,11 +81,11 @@ module Periodic = struct
     | Custom of (t -> now:Timestamp.t -> Timestamp.t)
 
   external create_regular : (t -> Loop.t -> unit) -> float -> float -> t
-    = "lev_create_periodic_regular"
+    = "lev_periodic_create_regular"
 
   external create_custom :
     (t -> Loop.t -> unit) -> (t -> now:Timestamp.t -> Timestamp.t) -> t
-    = "lev_create_periodic_custom"
+    = "lev_periodic_create_custom"
 
   let create f kind =
     match kind with
@@ -114,4 +114,24 @@ module Timer = struct
   external start : t -> Loop.t -> unit = "lev_timer_start"
 
   external again : t -> Loop.t -> unit = "lev_timer_again"
+end
+
+module Signal = struct
+  type t
+
+  let start _ _ = assert false
+
+  let stop _ _ = assert false
+
+  let create _ = assert false
+end
+
+module Child = struct
+  type t
+
+  let start _ _ = assert false
+
+  let stop _ _ = assert false
+
+  let create _ = assert false
 end

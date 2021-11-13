@@ -101,17 +101,21 @@ end
 (*   type t *)
 (* end *)
 
-(* module Child : sig *)
-(*   include Watcher *)
+module Child : sig
+  include Watcher
 
-(*   val create : (Loop.t -> t -> unit) -> pid:[`Any | `Pid of int] -> [`Terminate | `One_of_terminate_stop_continue] -> t *)
-(* end *)
+  val create :
+    (t -> Loop.t -> unit) ->
+    pid:[ `Any | `Pid of int ] ->
+    [ `Terminate | `Terminate_stop_or_continue ] ->
+    t
+end
 
-(* module Signal : sig *)
-(*   include Watcher *)
+module Signal : sig
+  include Watcher
 
-(*   val create : (Loop.t -> t -> unit) -> signal:int -> t *)
-(* end *)
+  val create : (Loop.t -> t -> unit) -> signal:int -> t
+end
 
 (* module Cleanup : sig *)
 (*   include Watcher *)
