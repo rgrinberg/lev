@@ -139,3 +139,13 @@ module Child = struct
 
   let create _ = assert false
 end
+
+module Cleanup = struct
+  type t
+
+  let start _ _ = assert false
+
+  let stop _ _ = assert false
+
+  let create _ = assert false
+end

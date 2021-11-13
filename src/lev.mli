@@ -121,8 +121,8 @@ module Signal : sig
   val create : (Loop.t -> t -> unit) -> signal:int -> t
 end
 
-(* module Cleanup : sig *)
-(*   include Watcher *)
+module Cleanup : sig
+  include Watcher
 
-(*   val create : (Loop.t -> t -> unit) -> t *)
-(* end *)
+  val create : (Loop.t -> unit) -> t
+end
