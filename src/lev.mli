@@ -47,17 +47,21 @@ end
 
 module Timestamp : sig
   type t
+
+  val of_float : float -> t
+
+  val to_float : t -> float
 end
 
-(* module Periodic : sig *)
-(*   include Watcher *)
+module Periodic : sig
+  include Watcher
 
-(*   val again : t -> Loop.t -> unit *)
+  type kind =
+    | Regular of { offset : Timestamp.t; interval : Timestamp.t option }
+    | Custom of (t -> now:Timestamp.t -> Timestamp.t)
 
-(*   val at : t -> Timestamp.t *)
-
-(*   val offset : t -> Timestamp.t *)
-(* end *)
+  val create : (t -> Loop.t -> unit) -> kind -> t
+end
 
 module Io : sig
   module Event : sig

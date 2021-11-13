@@ -22,6 +22,10 @@ end
 
 module Timestamp = struct
   type t = float
+
+  let to_float x = x
+
+  let of_float x = x
 end
 
 module type Watcher = sig
@@ -67,6 +71,32 @@ module Io = struct
   external start : t -> Loop.t -> unit = "lev_io_start"
 
   external stop : t -> Loop.t -> unit = "lev_io_stop"
+end
+
+module Periodic = struct
+  type t
+
+  type kind =
+    | Regular of { offset : Timestamp.t; interval : Timestamp.t option }
+    | Custom of (t -> now:Timestamp.t -> Timestamp.t)
+
+  external create_regular : (t -> Loop.t -> unit) -> float -> float -> t
+    = "lev_create_periodic_regular"
+
+  external create_custom :
+    (t -> Loop.t -> unit) -> (t -> now:Timestamp.t -> Timestamp.t) -> t
+    = "lev_create_periodic_custom"
+
+  let create f kind =
+    match kind with
+    | Custom rb -> create_custom f rb
+    | Regular { offset; interval } ->
+        let interval = match interval with None -> 0. | Some f -> f in
+        create_regular f offset interval
+
+  external stop : t -> Loop.t -> unit = "lev_periodic_stop"
+
+  external start : t -> Loop.t -> unit = "lev_periodic_start"
 end
 
 module Timer = struct
