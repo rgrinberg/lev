@@ -1,5 +1,7 @@
 external ev_version : unit -> int * int = "lev_version"
 
+external feed_signal : int -> unit = "lev_feed_signal"
+
 module Backend = struct
   type t =
     | Select

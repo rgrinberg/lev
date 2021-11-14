@@ -16,6 +16,8 @@ Some things to keep in mind:
 
 val ev_version : unit -> int * int
 
+val feed_signal : int -> unit
+
 module Backend : sig
   type t =
     | Select
