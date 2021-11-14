@@ -53,6 +53,11 @@ static long hash_watcher(value watcher) {
   return (long)Ev_watcher_val(watcher);
 }
 
+static void finlize_watcher(value v_watcher) {
+  ev_watcher *w = Ev_watcher_val(v_watcher);
+  caml_stat_free(w->data);
+}
+
 static struct custom_operations watcher_ops = {
     // TODO free
     "lev.watcher", custom_finalize_default,  compare_watchers,
