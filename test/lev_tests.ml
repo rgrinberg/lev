@@ -42,9 +42,9 @@ let%expect_test "read from pipe" =
   let loop = Loop.create () in
   let io_r =
     Io.create
-      (fun io loop events ->
+      (fun io fd events ->
         let b = Bytes.make 1 '0' in
-        match Unix.read r b 0 1 with
+        match Unix.read fd b 0 1 with
         | exception Unix.Unix_error (EAGAIN, _, _) -> ()
         | s ->
             assert (Io.Event.Set.mem events Read);
@@ -57,9 +57,9 @@ let%expect_test "read from pipe" =
   in
   let io_w =
     Io.create
-      (fun io loop events ->
+      (fun io fd events ->
         assert (Io.Event.Set.mem events Write);
-        ignore (Unix.write w (Bytes.make 1 'c') 0 1);
+        ignore (Unix.write fd (Bytes.make 1 'c') 0 1);
         print_endline "written to pipe";
         Unix.close w;
         Io.stop io loop)

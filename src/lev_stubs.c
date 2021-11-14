@@ -111,8 +111,8 @@ CAMLprim value lev_ev_run(value v_ev) {
 
 static void lev_io_cb(EV_P_ ev_io *w, int revents) {
   caml_acquire_runtime_system();
-  caml_callback2((value)w->data, caml_copy_nativeint((intnat)loop),
-                 Val_int(revents));
+  int fd = w->fd;
+  caml_callback2((value)w->data, Val_int(fd), Val_int(revents));
   caml_release_runtime_system();
 }
 

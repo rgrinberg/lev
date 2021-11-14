@@ -26,8 +26,7 @@ let server socket =
     Unix.close fd;
     Io.stop io loop
   in
-  let client_loop client io loop events =
-    let fd = Io.fd io in
+  let client_loop client io fd events =
     if Io.Event.Set.mem events Write then client.writeable <- true;
     (if Io.Event.Set.mem events Read then
      match Unix.read fd client.buf 0 (Bytes.length client.buf) with
@@ -54,8 +53,8 @@ let server socket =
   in
   let accept =
     Io.create
-      (fun _io loop _ ->
-        let client, _ = Unix.accept ~cloexec:true socket in
+      (fun _io fd _ ->
+        let client, _ = Unix.accept ~cloexec:true fd in
         Unix.set_nonblock client;
         let io =
           Io.create (client_loop (new_client buf)) client client_events
