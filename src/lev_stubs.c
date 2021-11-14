@@ -15,7 +15,11 @@
 #define Ev_timer_val(v) *(struct ev_timer **)Data_custom_val(v)
 #define Ev_periodic_val(v) *(struct ev_periodic **)Data_custom_val(v)
 
-#define DEF_BACKEND(__name, __value) CAMLprim value lev_backend_##__name(value v_unit) { CAMLparam1(v_unit); CAMLreturn(Int_val(__value)); }
+#define DEF_BACKEND(__name, __value)                                           \
+  CAMLprim value lev_backend_##__name(value v_unit) {                          \
+    CAMLparam1(v_unit);                                                        \
+    CAMLreturn(Int_val(__value));                                              \
+  }
 
 DEF_BACKEND(poll, EVBACKEND_POLL)
 DEF_BACKEND(select, EVBACKEND_SELECT)
