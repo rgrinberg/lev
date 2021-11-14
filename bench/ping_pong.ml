@@ -13,11 +13,11 @@ let response = Bytes.of_string "+PONG\r\n"
 
 type client = {
   mutable writeable : bool;
-  mutable pending_respones : int;
+  mutable pending_responses : int;
   buf : Bytes.t;
 }
 
-let new_client buf = { writeable = false; pending_respones = 0; buf }
+let new_client buf = { writeable = false; pending_responses = 0; buf }
 
 let server socket =
   let loop = Loop.default () in
@@ -36,16 +36,16 @@ let server socket =
      | read ->
          for i = 0 to read - 1 do
            if Bytes.get client.buf i = '\n' then
-             client.pending_respones <- client.pending_respones + 1
+             client.pending_responses <- client.pending_responses + 1
          done);
     if client.writeable then
-      let () = client.writeable <- client.pending_respones = 0 in
+      let () = client.writeable <- client.pending_responses = 0 in
       try
         (* we don't bother buffering writes for this benchmark *)
-        while client.pending_respones > 0 do
+        while client.pending_responses > 0 do
           let len = Bytes.length response in
           assert (Unix.write fd response 0 len = len);
-          client.pending_respones <- client.pending_respones - 1
+          client.pending_responses <- client.pending_responses - 1
         done
       with
       | Unix.Unix_error (Unix.EAGAIN, _, _) -> ()
