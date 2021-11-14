@@ -40,6 +40,7 @@ let server socket =
              client.pending_respones <- client.pending_respones + 1
          done);
     if client.writeable then
+      let () = client.writeable <- client.pending_respones = 0 in
       try
         (* we don't bother buffering writes for this benchmark *)
         while client.pending_respones > 0 do
@@ -73,7 +74,7 @@ let run sock_path =
   Unix.set_nonblock socket;
   Unix.bind socket (Unix.ADDR_UNIX sock_path);
   at_exit delete;
-  Unix.listen socket 11_000;
+  Unix.listen socket 128;
   server socket
 
 let () = run Sys.argv.(1)
