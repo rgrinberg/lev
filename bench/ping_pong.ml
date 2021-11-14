@@ -64,7 +64,7 @@ let server socket =
       (Io.Event.Set.create ~read:true ())
   in
   Io.start accept loop;
-  ignore (Loop.run loop `No_wait)
+  Loop.run_until_done loop
 
 let run sock_path =
   let delete () = try Unix.unlink sock_path with Unix.Unix_error _ -> () in

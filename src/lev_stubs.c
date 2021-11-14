@@ -121,8 +121,9 @@ CAMLprim value lev_ev_run(value v_ev) {
   CAMLparam1(v_ev);
   struct ev_loop *loop = (struct ev_loop *)Nativeint_val(v_ev);
   caml_release_runtime_system();
-  bool ret = ev_run(loop, 0);
+  bool ret = ev_run(loop, EVRUN_ONCE);
   caml_acquire_runtime_system();
+  ev_invoke_pending(loop);
   CAMLreturn(Val_bool(ret));
 }
 

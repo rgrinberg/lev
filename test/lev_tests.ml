@@ -30,7 +30,7 @@ let%expect_test "supported backends" =
 
 let%expect_test "create and run" =
   let ev = Loop.create () in
-  (match Loop.run ev `No_wait with
+  (match Loop.run ev with
   | `No_more_active_watchers -> ()
   | `Otherwise -> assert false);
   [%expect {||}]
@@ -68,7 +68,7 @@ let%expect_test "read from pipe" =
   in
   Io.start io_r loop;
   Io.start io_w loop;
-  ignore (Lev.Loop.run loop `No_wait);
+  ignore (Loop.run_until_done loop);
   [%expect {|
     written to pipe
     read char c |}]
@@ -81,6 +81,6 @@ let%expect_test "timer" =
         Timer.stop timer loop)
   in
   Timer.start timer loop;
-  ignore (Lev.Loop.run loop `No_wait);
+  ignore (Lev.Loop.run loop);
   [%expect {|
     fired timer |}]

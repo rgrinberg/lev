@@ -70,8 +70,9 @@ module Loop : sig
 
   val now_update : t -> unit
 
-  val run :
-    t -> [ `No_wait | `Once ] -> [ `No_more_active_watchers | `Otherwise ]
+  val run : t -> [ `No_more_active_watchers | `Otherwise ]
+
+  val run_until_done : t -> unit
 
   val depth : t -> int
 

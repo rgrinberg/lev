@@ -97,7 +97,12 @@ module Loop = struct
 
   external run : t -> bool = "lev_ev_run"
 
-  let run t _ = if run t then `Otherwise else `No_more_active_watchers
+  let run t = if run t then `Otherwise else `No_more_active_watchers
+
+  let rec run_until_done t =
+    match run t with
+    | `Otherwise -> run_until_done t
+    | `No_more_active_watchers -> ()
 
   let depth _ = 0
 
