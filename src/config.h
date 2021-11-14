@@ -52,12 +52,12 @@
 #define HAVE_SYS_EVENT_H 1
 #endif
 
-#if HAVE_SYS_EVENT_H && (defined(__apple__) || defined(__unix__))
-#define HAVE_KQUEUE
+#if HAVE_SYS_EVENT_H && (defined(__APPLE__) || defined(__unix__))
+#define HAVE_KQUEUE 1
 #endif
 
-#if defined(__linux__) || defined(__unix__) || defined(__apple__)
-#define HAVE_NANOSLEEP
+#if defined(__linux__) || defined(__unix__) || defined(__APPLE__)
+#define HAVE_NANOSLEEP 1
 #endif
 
 #define HAVE_FLOOR 1
