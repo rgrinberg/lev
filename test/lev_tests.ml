@@ -19,6 +19,15 @@ let%expect_test "sleep" =
   Timestamp.sleep (Timestamp.of_float 0.1);
   [%expect {||}]
 
+let%expect_test "supported backends" =
+  let s = Backend.supported () in
+  if Backend.Set.mem s Poll then print_endline "poll";
+  if Backend.Set.mem s Select then print_endline "select";
+  if Backend.Set.mem s Kqueue then print_endline "kqueue";
+  [%expect {|
+    select
+    kqueue|}]
+
 let%expect_test "create and run" =
   let ev = Loop.create () in
   (match Loop.run ev `No_wait with

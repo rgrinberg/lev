@@ -16,6 +16,33 @@ Some things to keep in mind:
 
 val ev_version : unit -> int * int
 
+module Backend : sig
+  type t =
+    | Select
+    | Poll
+    | Epoll
+    | Kqueue
+    | Devpoll
+    | Port
+    | Linuxaio
+    | Iouring
+
+  module Set : sig
+    type t
+
+    type backend
+
+    val mem : t -> backend -> bool
+  end
+  with type backend := t
+
+  val supported : unit -> Set.t
+
+  val embeddable : unit -> Set.t
+
+  val recommended : unit -> Set.t
+end
+
 module Timestamp : sig
   type t
 

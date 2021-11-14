@@ -1,5 +1,71 @@
 external ev_version : unit -> int * int = "lev_version"
 
+module Backend = struct
+  type t =
+    | Select
+    | Poll
+    | Epoll
+    | Kqueue
+    | Devpoll
+    | Port
+    | Linuxaio
+    | Iouring
+
+  external select : unit -> int = "lev_backend_select"
+
+  let select = select ()
+
+  external poll : unit -> int = "lev_backend_poll"
+
+  let poll = poll ()
+
+  external epoll : unit -> int = "lev_backend_epoll"
+
+  let epoll = epoll ()
+
+  external kqueue : unit -> int = "lev_backend_kqueue"
+
+  let kqueue = kqueue ()
+
+  external devpoll : unit -> int = "lev_backend_devpoll"
+
+  let devpoll = devpoll ()
+
+  external port : unit -> int = "lev_backend_port"
+
+  let port = port ()
+
+  external linuxaio : unit -> int = "lev_backend_linuxaio"
+
+  let linuxaio = linuxaio ()
+
+  external iouring : unit -> int = "lev_backend_iouring"
+
+  let iouring = iouring ()
+
+  let to_int = function
+    | Select -> select
+    | Poll -> poll
+    | Epoll -> epoll
+    | Kqueue -> kqueue
+    | Devpoll -> devpoll
+    | Port -> port
+    | Linuxaio -> linuxaio
+    | Iouring -> iouring
+
+  module Set = struct
+    type t = int
+
+    let mem t c = t land to_int c <> 0
+  end
+
+  external supported : unit -> Set.t = "lev_backend_supported"
+
+  external embeddable : unit -> Set.t = "lev_backend_embeddable"
+
+  external recommended : unit -> Set.t = "lev_backend_recommended"
+end
+
 module Timestamp = struct
   type t = float
 

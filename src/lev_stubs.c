@@ -15,6 +15,32 @@
 #define Ev_timer_val(v) *(struct ev_timer **)Data_custom_val(v)
 #define Ev_periodic_val(v) *(struct ev_periodic **)Data_custom_val(v)
 
+#define DEF_BACKEND(__name, __value) CAMLprim value lev_backend_##__name(value v_unit) { CAMLparam1(v_unit); CAMLreturn(Int_val(__value)); }
+
+DEF_BACKEND(poll, EVBACKEND_POLL)
+DEF_BACKEND(select, EVBACKEND_SELECT)
+DEF_BACKEND(epoll, EVBACKEND_EPOLL)
+DEF_BACKEND(kqueue, EVBACKEND_KQUEUE)
+DEF_BACKEND(devpoll, EVBACKEND_DEVPOLL)
+DEF_BACKEND(port, EVBACKEND_PORT)
+DEF_BACKEND(linuxaio, EVBACKEND_LINUXAIO)
+DEF_BACKEND(iouring, EVBACKEND_IOURING)
+
+CAMLprim value lev_backend_supported(value v_unit) {
+  CAMLparam1(v_unit);
+  CAMLreturn(Int_val(ev_supported_backends()));
+}
+
+CAMLprim value lev_backend_recommended(value v_unit) {
+  CAMLparam1(v_unit);
+  CAMLreturn(Int_val(ev_recommended_backends()));
+}
+
+CAMLprim value lev_backend_embeddable(value v_unit) {
+  CAMLparam1(v_unit);
+  CAMLreturn(Int_val(ev_embeddable_backends()));
+}
+
 static int compare_watchers(value a, value b) {
   return (int)((char *)Ev_watcher_val(a) - (char *)Ev_watcher_val(b));
 }
