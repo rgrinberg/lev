@@ -63,11 +63,12 @@ let server socket =
   ignore (Loop.run loop `No_wait)
 
 let run sock_path =
-  Unix.unlink sock_path;
+  let delete () = try Unix.unlink sock_path with Unix.Unix_error _ -> () in
+  delete ();
   let socket = Unix.socket ~cloexec:true Unix.PF_UNIX Unix.SOCK_STREAM 0 in
   Unix.set_nonblock socket;
   Unix.bind socket (Unix.ADDR_UNIX sock_path);
-  at_exit (fun () -> Unix.unlink sock_path);
+  at_exit delete;
   Unix.listen socket 11_000;
   server socket
 
