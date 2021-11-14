@@ -51,6 +51,7 @@ let server socket =
     Io.create
       (fun _io loop _ ->
         let client, _ = Unix.accept ~cloexec:true socket in
+        Unix.set_nonblock client;
         let io =
           Io.create (client_loop (new_client buf)) client client_events
         in
