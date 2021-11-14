@@ -72,6 +72,9 @@ CAMLprim value lev_version(value v_unit) {
 CAMLprim value lev_ev_default(value v_unit) {
   CAMLparam1(v_unit);
   struct ev_loop *loop = ev_default_loop(0);
+  if (!loop) {
+    caml_failwith("unable to create loop");
+  }
   CAMLreturn(caml_copy_nativeint((intnat)loop));
 }
 
