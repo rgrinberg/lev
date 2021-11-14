@@ -22,6 +22,10 @@ let new_client buf = { writeable = false; pending_respones = 0; buf }
 let server socket =
   let loop = Loop.default () in
   let buf = Bytes.create 1024 in
+  let cleanup io loop fd =
+    Unix.close fd;
+    Io.stop io loop
+  in
   let client_loop client io loop events =
     let fd = Io.fd io in
     if Io.Event.Set.mem events Write then client.writeable <- true;
@@ -29,7 +33,7 @@ let server socket =
      match Unix.read fd client.buf 0 (Bytes.length client.buf) with
      | exception Unix.Unix_error (Unix.EAGAIN, _, _) -> ()
      | exception _ -> Io.stop io loop
-     | 0 -> Io.stop io loop
+     | 0 -> cleanup io loop fd
      | read ->
          for i = 0 to read - 1 do
            if Bytes.get client.buf i = '\n' then
@@ -45,7 +49,7 @@ let server socket =
         done
       with
       | Unix.Unix_error (Unix.EAGAIN, _, _) -> ()
-      | _ -> Io.stop io loop
+      | _ -> cleanup io loop fd
   in
   let accept =
     Io.create
