@@ -76,6 +76,12 @@ module Loop : sig
   val depth : t -> int
 
   val break : t -> [ `Cancel | `One | `All ] -> unit
+
+  val backend : t -> Backend.t
+
+  val suspend : t -> unit
+
+  val resume : t -> unit
 end
 
 module type Watcher = sig

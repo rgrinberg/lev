@@ -1,3 +1,5 @@
+module List = ListLabels
+
 external ev_version : unit -> int * int = "lev_version"
 
 external feed_signal : int -> unit = "lev_feed_signal"
@@ -12,6 +14,8 @@ module Backend = struct
     | Port
     | Linuxaio
     | Iouring
+
+  let all = [ Select; Poll; Epoll; Kqueue; Devpoll; Port; Linuxaio; Iouring ]
 
   external select : unit -> int = "lev_backend_select"
 
@@ -98,6 +102,16 @@ module Loop = struct
   let depth _ = 0
 
   let break _ _ = ()
+
+  external backend : t -> Backend.Set.t = "lev_loop_backend"
+
+  let backend t =
+    let b = backend t in
+    List.find Backend.all ~f:(fun backend -> Backend.Set.mem b backend)
+
+  let suspend _ = ()
+
+  let resume _ = ()
 end
 
 module type Watcher = sig
