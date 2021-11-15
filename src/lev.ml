@@ -4,6 +4,23 @@ external ev_version : unit -> int * int = "lev_version"
 
 external feed_signal : int -> unit = "lev_feed_signal"
 
+module Set (Element : sig
+  type t
+
+  val to_int : t -> int
+end) =
+struct
+  type t = int
+
+  let mem t c = t land Element.to_int c <> 0
+
+  let singleton x : t = Element.to_int x
+
+  let empty : t = 0
+
+  let union x y = x lor y
+end
+
 module Backend = struct
   type t =
     | Select
@@ -59,11 +76,11 @@ module Backend = struct
     | Linuxaio -> linuxaio
     | Iouring -> iouring
 
-  module Set = struct
-    type t = int
+  module Set = Set (struct
+    type nonrec t = t
 
-    let mem t c = t land to_int c <> 0
-  end
+    let to_int = to_int
+  end)
 
   external supported : unit -> Set.t = "lev_backend_supported"
 
@@ -142,12 +159,16 @@ module Io = struct
     let to_int = function Read -> read | Write -> write
 
     module Set = struct
-      type t = int
+      include Set (struct
+        type nonrec t = t
 
-      let mem t c = t land to_int c <> 0
+        let to_int = to_int
+      end)
 
       let create ?(read = false) ?(write = false) () =
-        (if read then to_int Read else 0) lor if write then to_int Write else 0
+        union
+          (if read then singleton Read else empty)
+          (if write then singleton Write else empty)
     end
   end
 
