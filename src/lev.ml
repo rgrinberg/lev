@@ -241,11 +241,24 @@ end
 module Child = struct
   type t
 
-  let start _ _ = assert false
+  external stop : t -> Loop.t -> unit = "lev_child_stop"
 
-  let stop _ _ = assert false
+  external start : t -> Loop.t -> unit = "lev_child_start"
 
-  let create _ = assert false
+  type pid = Any | Pid of int
+
+  type trace = Terminate | Terminate_stop_or_continue
+
+  external create :
+    (t -> pid:int -> Unix.process_status -> unit) -> int -> int -> t
+    = "lev_child_create"
+
+  let create cb pid trace =
+    let pid = match pid with Any -> 0 | Pid pid -> pid in
+    let trace =
+      match trace with Terminate -> 0 | Terminate_stop_or_continue -> 1
+    in
+    create cb pid trace
 end
 
 module Cleanup = struct

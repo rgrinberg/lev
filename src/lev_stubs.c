@@ -2,16 +2,27 @@
 
 #include <stdbool.h>
 
+#include <sys/types.h>
+#include <sys/wait.h>
+
+#define TAG_WEXITED 0
+#define TAG_WSIGNALED 1
+#define TAG_WSTOPPED 2
+
+#define CAML_INTERNALS
+
 #include <caml/alloc.h>
 #include <caml/callback.h>
 #include <caml/custom.h>
 #include <caml/fail.h>
 #include <caml/memory.h>
 #include <caml/mlvalues.h>
+#include <caml/signals.h>
 #include <caml/threads.h>
 
 #define Ev_watcher_val(v) *(struct ev_watcher **)Data_custom_val(v)
 #define Ev_io_val(v) *(struct ev_io **)Data_custom_val(v)
+#define Ev_child_val(v) *(struct ev_child **)Data_custom_val(v)
 #define Ev_timer_val(v) *(struct ev_timer **)Data_custom_val(v)
 #define Ev_periodic_val(v) *(struct ev_periodic **)Data_custom_val(v)
 #define Ev_cleanup_val(v) *(struct ev_cleanup **)Data_custom_val(v)
@@ -150,6 +161,26 @@ CAMLprim value lev_ev_run(value v_ev) {
 static void lev_io_cb(EV_P_ ev_io *w, int revents) {
   int fd = w->fd;
   caml_callback2((value)w->data, Val_int(fd), Val_int(revents));
+}
+
+static void lev_child_cb(EV_P_ ev_child *w, int revents) {
+  CAMLparam0();
+  CAMLlocal1(v_status);
+  int status = w->rstatus;
+  if (WIFEXITED(status)) {
+    v_status = caml_alloc_small(1, TAG_WEXITED);
+    Field(v_status, 0) = Val_int(WEXITSTATUS(status));
+  } else if (WIFSTOPPED(status)) {
+    v_status = caml_alloc_small(1, TAG_WSTOPPED);
+    Field(v_status, 0) =
+        Val_int(caml_rev_convert_signal_number(WSTOPSIG(status)));
+  } else {
+    v_status = caml_alloc_small(1, TAG_WSIGNALED);
+    Field(v_status, 0) =
+        Val_int(caml_rev_convert_signal_number(WTERMSIG(status)));
+  }
+  caml_callback2((value)w->data, Val_int(w->rpid), v_status);
+  CAMLdrop;
 }
 
 static void lev_watcher_cb(EV_P_ ev_watcher *w, int revents) {
@@ -294,4 +325,36 @@ CAMLprim value lev_cleanup_create(value v_cb) {
   cleanup->data = (void *)v_cb_applied;
   caml_register_generational_global_root((value *)(&(cleanup->data)));
   CAMLreturn(v_cleanup);
+}
+
+CAMLprim value lev_child_start(value v_child, value v_ev) {
+  CAMLparam2(v_child, v_ev);
+  ev_child *child = Ev_child_val(v_child);
+  struct ev_loop *ev = (struct ev_loop *)Nativeint_val(v_ev);
+  ev_child_start(ev, child);
+  CAMLreturn(Val_unit);
+}
+
+CAMLprim value lev_child_stop(value v_child, value v_ev) {
+  CAMLparam2(v_child, v_ev);
+  ev_child *child = Ev_child_val(v_child);
+  struct ev_loop *ev = (struct ev_loop *)Nativeint_val(v_ev);
+  caml_remove_generational_global_root((value *)(&(child->data)));
+  ev_child_stop(ev, child);
+  CAMLreturn(Val_unit);
+}
+
+CAMLprim value lev_child_create(value v_cb, value v_pid, value v_trace) {
+  CAMLparam3(v_cb, v_pid, v_trace);
+  int pid = Int_val(v_pid);
+  int trace = Int_val(v_trace);
+  CAMLlocal2(v_child, v_cb_applied);
+  ev_child *child = caml_stat_alloc(sizeof(ev_child));
+  ev_child_init(child, lev_child_cb, pid, trace);
+  v_child = caml_alloc_custom(&watcher_ops, sizeof(struct ev_child *), 0, 1);
+  Ev_child_val(v_child) = child;
+  v_cb_applied = caml_callback(v_cb, v_child);
+  child->data = (void *)v_cb_applied;
+  caml_register_generational_global_root((value *)(&(child->data)));
+  CAMLreturn(v_child);
 }

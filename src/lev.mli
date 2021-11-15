@@ -149,10 +149,14 @@ end
 module Child : sig
   include Watcher
 
+  type pid = Any | Pid of int
+
+  type trace = Terminate | Terminate_stop_or_continue
+
   val create :
-    (t -> Loop.t -> unit) ->
-    pid:[ `Any | `Pid of int ] ->
-    [ `Terminate | `Terminate_stop_or_continue ] ->
+    (t -> pid:int -> Unix.process_status -> unit) ->
+    pid ->
+    trace ->
     t
 end
 
