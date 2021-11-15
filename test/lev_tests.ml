@@ -19,6 +19,12 @@ let%expect_test "sleep" =
   Timestamp.sleep (Timestamp.of_float 0.1);
   [%expect {||}]
 
+let%expect_test "suspend/resume" =
+  let loop = Loop.create () in
+  Loop.suspend loop;
+  Loop.resume loop;
+  [%expect {||}]
+
 let%expect_test "supported backends" =
   let s = Backend.supported () in
   if Backend.Set.mem s Poll then print_endline "poll";
