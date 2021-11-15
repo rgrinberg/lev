@@ -108,7 +108,7 @@ module Loop = struct
 
   external now : t -> Timestamp.t = "lev_ev_now"
 
-  let destroy _ = ()
+  external destroy : t -> unit = "lev_loop_destroy"
 
   let now_update _ = ()
 

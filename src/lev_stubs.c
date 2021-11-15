@@ -95,6 +95,13 @@ CAMLprim value lev_loop_resume(value v_loop) {
   CAMLreturn(Val_unit);
 }
 
+CAMLprim value lev_loop_destroy(value v_loop) {
+  CAMLparam1(v_loop);
+  struct ev_loop *loop = (struct ev_loop *)Nativeint_val(v_loop);
+  ev_loop_destroy(loop);
+  CAMLreturn(Val_unit);
+}
+
 CAMLprim value lev_ev_default(value v_unit) {
   CAMLparam1(v_unit);
   struct ev_loop *loop = ev_default_loop(0);
