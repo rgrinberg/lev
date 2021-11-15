@@ -123,16 +123,12 @@ CAMLprim value lev_ev_run(value v_ev) {
 }
 
 static void lev_io_cb(EV_P_ ev_io *w, int revents) {
-  caml_acquire_runtime_system();
   int fd = w->fd;
   caml_callback2((value)w->data, Val_int(fd), Val_int(revents));
-  caml_release_runtime_system();
 }
 
 static void lev_timer_cb(EV_P_ ev_timer *w, int revents) {
-  caml_acquire_runtime_system();
   caml_callback((value)w->data, caml_copy_nativeint((intnat)loop));
-  caml_release_runtime_system();
 }
 
 CAMLprim value lev_io_read_code(value v_unit) {
