@@ -30,20 +30,15 @@ DEF_BACKEND(port, EVBACKEND_PORT)
 DEF_BACKEND(linuxaio, EVBACKEND_LINUXAIO)
 DEF_BACKEND(iouring, EVBACKEND_IOURING)
 
-CAMLprim value lev_backend_supported(value v_unit) {
-  CAMLparam1(v_unit);
-  CAMLreturn(Int_val(ev_supported_backends()));
-}
+#define DEF_BACKEND_SET(__name, __value)                                       \
+  CAMLprim value lev_backend_##__name(value v_unit) {                          \
+    CAMLparam1(v_unit);                                                        \
+    CAMLreturn(Int_val(__value()));                                            \
+  }
 
-CAMLprim value lev_backend_recommended(value v_unit) {
-  CAMLparam1(v_unit);
-  CAMLreturn(Int_val(ev_recommended_backends()));
-}
-
-CAMLprim value lev_backend_embeddable(value v_unit) {
-  CAMLparam1(v_unit);
-  CAMLreturn(Int_val(ev_embeddable_backends()));
-}
+DEF_BACKEND_SET(supported, ev_supported_backends)
+DEF_BACKEND_SET(recommended, ev_recommended_backends)
+DEF_BACKEND_SET(embeddable, ev_embeddable_backends)
 
 static int compare_watchers(value a, value b) {
   return (int)((char *)Ev_watcher_val(a) - (char *)Ev_watcher_val(b));
