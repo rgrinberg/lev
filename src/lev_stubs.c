@@ -14,6 +14,10 @@
 #define Ev_io_val(v) *(struct ev_io **)Data_custom_val(v)
 #define Ev_timer_val(v) *(struct ev_timer **)Data_custom_val(v)
 #define Ev_periodic_val(v) *(struct ev_periodic **)Data_custom_val(v)
+#define Ev_cleanup_val(v) *(struct ev_cleanup **)Data_custom_val(v)
+
+#define Cb_for(__t)                                                            \
+  (void (*)(struct ev_loop *, struct __t *, int)) lev_watcher_cb
 
 #define DEF_BACKEND(__name, __value)                                           \
   CAMLprim value lev_backend_##__name(value v_unit) {                          \
@@ -148,7 +152,7 @@ static void lev_io_cb(EV_P_ ev_io *w, int revents) {
   caml_callback2((value)w->data, Val_int(fd), Val_int(revents));
 }
 
-static void lev_timer_cb(EV_P_ ev_timer *w, int revents) {
+static void lev_watcher_cb(EV_P_ ev_watcher *w, int revents) {
   caml_callback((value)w->data, caml_copy_nativeint((intnat)loop));
 }
 
@@ -202,7 +206,8 @@ CAMLprim value lev_timer_create(value v_cb, value v_after, value v_repeat) {
   CAMLparam3(v_cb, v_after, v_repeat);
   CAMLlocal2(v_timer, v_cb_applied);
   ev_timer *timer = caml_stat_alloc(sizeof(ev_timer));
-  ev_timer_init(timer, lev_timer_cb, Double_val(v_after), Double_val(v_repeat));
+  ev_timer_init(timer, Cb_for(ev_timer), Double_val(v_after),
+                Double_val(v_repeat));
   v_timer = caml_alloc_custom(&watcher_ops, sizeof(struct ev_timer *), 0, 1);
   Ev_timer_val(v_timer) = timer;
   v_cb_applied = caml_callback(v_cb, v_timer);
@@ -258,4 +263,35 @@ CAMLprim value lev_periodic_start(value v_periodic, value v_ev) {
 
 CAMLprim value lev_periodic_stop(value v_periodic, value v_ev) {
   caml_failwith("TODO");
+}
+
+CAMLprim value lev_cleanup_start(value v_cleanup, value v_ev) {
+  CAMLparam2(v_cleanup, v_ev);
+  ev_cleanup *cleanup = Ev_cleanup_val(v_cleanup);
+  struct ev_loop *ev = (struct ev_loop *)Nativeint_val(v_ev);
+  ev_cleanup_start(ev, cleanup);
+  CAMLreturn(Val_unit);
+}
+
+CAMLprim value lev_cleanup_stop(value v_cleanup, value v_ev) {
+  CAMLparam2(v_cleanup, v_ev);
+  ev_cleanup *cleanup = Ev_cleanup_val(v_cleanup);
+  struct ev_loop *ev = (struct ev_loop *)Nativeint_val(v_ev);
+  caml_remove_generational_global_root((value *)(&(cleanup->data)));
+  ev_cleanup_stop(ev, cleanup);
+  CAMLreturn(Val_unit);
+}
+
+CAMLprim value lev_cleanup_create(value v_cb) {
+  CAMLparam1(v_cb);
+  CAMLlocal2(v_cleanup, v_cb_applied);
+  ev_cleanup *cleanup = caml_stat_alloc(sizeof(ev_cleanup));
+  ev_cleanup_init(cleanup, Cb_for(ev_cleanup));
+  v_cleanup =
+      caml_alloc_custom(&watcher_ops, sizeof(struct ev_cleanup *), 0, 1);
+  Ev_cleanup_val(v_cleanup) = cleanup;
+  v_cb_applied = caml_callback(v_cb, v_cleanup);
+  cleanup->data = (void *)v_cb_applied;
+  caml_register_generational_global_root((value *)(&(cleanup->data)));
+  CAMLreturn(v_cleanup);
 }

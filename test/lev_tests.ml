@@ -90,3 +90,11 @@ let%expect_test "timer" =
   ignore (Lev.Loop.run loop);
   [%expect {|
     fired timer |}]
+
+let%expect_test "cleanup callbacks" =
+  let loop = Loop.create () in
+  let cleanup = Cleanup.create (fun _ _ -> print_endline "cleanup") in
+  Cleanup.start cleanup loop;
+  ignore (Loop.run loop);
+  Loop.destroy loop;
+  [%expect {| cleanup |}]

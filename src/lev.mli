@@ -165,5 +165,5 @@ end
 module Cleanup : sig
   include Watcher
 
-  val create : (Loop.t -> unit) -> t
+  val create : (t -> Loop.t -> unit) -> t
 end

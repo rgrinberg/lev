@@ -251,11 +251,11 @@ end
 module Cleanup = struct
   type t
 
-  let start _ _ = assert false
+  external stop : t -> Loop.t -> unit = "lev_cleanup_stop"
 
-  let stop _ _ = assert false
+  external start : t -> Loop.t -> unit = "lev_cleanup_start"
 
-  let create _ = assert false
+  external create : (t -> Loop.t -> unit) -> t = "lev_cleanup_create"
 end
 
 module Stat = struct
