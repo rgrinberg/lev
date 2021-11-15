@@ -131,9 +131,9 @@ module Loop = struct
     let b = backend t in
     List.find Backend.all ~f:(fun backend -> Backend.Set.mem b backend)
 
-  let suspend _ = ()
+  external suspend : t -> unit = "lev_loop_suspend"
 
-  let resume _ = ()
+  external resume : t -> unit = "lev_loop_resume"
 end
 
 module type Watcher = sig
