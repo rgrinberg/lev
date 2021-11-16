@@ -125,7 +125,23 @@ module Loop = struct
 
   type break = One | All | Cancel
 
-  let break _ _ = ()
+  external one : unit -> int = "lev_loop_break_one_code"
+
+  let one = one ()
+
+  external all : unit -> int = "lev_loop_break_all_code"
+
+  let all = all ()
+
+  external cancel : unit -> int = "lev_loop_break_cancel_code"
+
+  let cancel = cancel ()
+
+  let int_of_break = function One -> one | All -> all | Cancel -> cancel
+
+  external break : t -> int -> unit = "lev_loop_break"
+
+  let break t b = break t (int_of_break b)
 
   external backend : t -> Backend.Set.t = "lev_loop_backend"
 
