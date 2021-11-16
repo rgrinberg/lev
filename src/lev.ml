@@ -211,13 +211,15 @@ module Periodic = struct
   external start : t -> Loop.t -> unit = "lev_periodic_start"
 end
 
+let wrap_callback f t () = f t
+
 module Timer = struct
   type t
 
-  external create : (t -> Loop.t -> unit) -> float -> float -> t
+  external create : (t -> unit -> unit) -> float -> float -> t
     = "lev_timer_create"
 
-  let create ?(repeat = 0.) ~after f = create f repeat after
+  let create ?(repeat = 0.) ~after f = create (wrap_callback f) repeat after
 
   external remaining : t -> Loop.t -> Timestamp.t = "lev_timer_remaining"
 
@@ -268,7 +270,9 @@ module Cleanup = struct
 
   external start : t -> Loop.t -> unit = "lev_cleanup_start"
 
-  external create : (t -> Loop.t -> unit) -> t = "lev_cleanup_create"
+  external create : (t -> unit -> unit) -> t = "lev_cleanup_create"
+
+  let create f = create (wrap_callback f)
 end
 
 module Stat = struct

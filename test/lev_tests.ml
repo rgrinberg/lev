@@ -82,7 +82,7 @@ let%expect_test "read from pipe" =
 let%expect_test "timer" =
   let loop = Loop.create () in
   let timer =
-    Timer.create ~after:0.02 (fun timer loop ->
+    Timer.create ~after:0.02 (fun timer ->
         print_endline "fired timer";
         Timer.stop timer loop)
   in
@@ -93,7 +93,7 @@ let%expect_test "timer" =
 
 let%expect_test "cleanup callbacks" =
   let loop = Loop.create () in
-  let cleanup = Cleanup.create (fun _ _ -> print_endline "cleanup") in
+  let cleanup = Cleanup.create (fun _ -> print_endline "cleanup") in
   Cleanup.start cleanup loop;
   ignore (Loop.run loop);
   Loop.destroy loop;

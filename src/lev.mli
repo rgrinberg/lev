@@ -133,7 +133,7 @@ end
 module Timer : sig
   include Watcher
 
-  val create : ?repeat:float -> after:float -> (t -> Loop.t -> unit) -> t
+  val create : ?repeat:float -> after:float -> (t -> unit) -> t
 
   val remaining : t -> Loop.t -> Timestamp.t
 
@@ -160,11 +160,11 @@ end
 module Signal : sig
   include Watcher
 
-  val create : (Loop.t -> t -> unit) -> signal:int -> t
+  val create : (t -> unit) -> signal:int -> t
 end
 
 module Cleanup : sig
   include Watcher
 
-  val create : (t -> Loop.t -> unit) -> t
+  val create : (t -> unit) -> t
 end
