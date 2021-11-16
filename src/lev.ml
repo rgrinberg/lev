@@ -308,7 +308,7 @@ module Idle = struct
 
   external start : t -> Loop.t -> unit = "lev_idle_start"
 
-  let create _ = assert false
+  external create : (t -> unit) -> t = "lev_idle_create"
 end
 
 module Check = struct
@@ -318,7 +318,7 @@ module Check = struct
 
   external start : t -> Loop.t -> unit = "lev_check_start"
 
-  let create _ = assert false
+  external create : (t -> unit) -> t = "lev_check_create"
 end
 
 module Async = struct
@@ -332,7 +332,7 @@ module Async = struct
 
   let send _ _ = assert false
 
-  let create _ = assert false
+  external create : (t -> unit) -> t = "lev_async_create"
 end
 
 module Prepare = struct
@@ -342,5 +342,5 @@ module Prepare = struct
 
   external start : t -> Loop.t -> unit = "lev_prepare_start"
 
-  let create _ = assert false
+  external create : (t -> unit) -> t = "lev_prepare_create"
 end

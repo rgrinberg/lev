@@ -331,19 +331,25 @@ CAMLprim value lev_periodic_create_custom(value v_cb, value v_reschedule) {
   CAMLreturn(v_periodic);
 }
 
-CAMLprim value lev_cleanup_create(value v_cb) {
-  CAMLparam1(v_cb);
-  CAMLlocal2(v_cleanup, v_cb_applied);
-  ev_cleanup *cleanup = caml_stat_alloc(sizeof(ev_cleanup));
-  ev_cleanup_init(cleanup, Cb_for(ev_cleanup));
-  v_cleanup =
-      caml_alloc_custom(&watcher_ops, sizeof(struct ev_cleanup *), 0, 1);
-  Ev_cleanup_val(v_cleanup) = cleanup;
-  v_cb_applied = caml_callback(v_cb, v_cleanup);
-  cleanup->data = (void *)v_cb_applied;
-  caml_register_generational_global_root((value *)(&(cleanup->data)));
-  CAMLreturn(v_cleanup);
-}
+#define DEF_SIMPLE_CREATE(__name)                                              \
+  CAMLprim value lev_##__name##_create(value v_cb) {                           \
+    CAMLparam1(v_cb);                                                          \
+    CAMLlocal2(v_w, v_cb_applied);                                             \
+    ev_##__name *w = caml_stat_alloc(sizeof(ev_##__name));                     \
+    ev_##__name##_init(w, Cb_for(ev_##__name));                                \
+    v_w = caml_alloc_custom(&watcher_ops, sizeof(struct ev_##__name *), 0, 1); \
+    Ev_val(ev_##__name, v_w) = w;                                              \
+    v_cb_applied = caml_callback(v_cb, v_w);                                   \
+    w->data = (void *)v_cb_applied;                                            \
+    caml_register_generational_global_root((value *)(&(w->data)));             \
+    CAMLreturn(v_w);                                                           \
+  }
+
+DEF_SIMPLE_CREATE(cleanup)
+DEF_SIMPLE_CREATE(async)
+DEF_SIMPLE_CREATE(check)
+DEF_SIMPLE_CREATE(prepare)
+DEF_SIMPLE_CREATE(idle)
 
 CAMLprim value lev_child_create(value v_cb, value v_pid, value v_trace) {
   CAMLparam3(v_cb, v_pid, v_trace);
