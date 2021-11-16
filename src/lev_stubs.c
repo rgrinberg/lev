@@ -340,8 +340,8 @@ CAMLprim value lev_periodic_create_regular(value v_cb, value v_offset,
   CAMLparam3(v_cb, v_offset, v_interval);
   CAMLlocal2(v_periodic, v_cb_applied);
   ev_periodic *periodic = caml_stat_alloc(sizeof(ev_periodic));
-  ev_periodic_init(periodic, Cb_for(ev_periodic), Int_val(v_offset),
-                   Int_val(v_interval), NULL);
+  ev_periodic_init(periodic, Cb_for(ev_periodic), Double_val(v_offset),
+                   Double_val(v_interval), NULL);
   v_periodic =
       caml_alloc_custom(&watcher_ops, sizeof(struct ev_periodic *), 0, 1);
   Ev_periodic_val(v_periodic) = periodic;

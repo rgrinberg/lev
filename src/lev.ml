@@ -203,6 +203,8 @@ module Io = struct
   external stop : t -> Loop.t -> unit = "lev_io_stop"
 end
 
+let wrap_callback f t () = f t
+
 module Periodic = struct
   type t
 
@@ -210,14 +212,15 @@ module Periodic = struct
     | Regular of { offset : Timestamp.t; interval : Timestamp.t option }
     | Custom of (t -> now:Timestamp.t -> Timestamp.t)
 
-  external create_regular : (t -> unit) -> float -> float -> t
+  external create_regular : (t -> unit -> unit) -> float -> float -> t
     = "lev_periodic_create_regular"
 
   external create_custom :
-    (t -> unit) -> (t -> now:Timestamp.t -> Timestamp.t) -> t
+    (t -> unit -> unit) -> (t -> now:Timestamp.t -> Timestamp.t) -> t
     = "lev_periodic_create_custom"
 
   let create f kind =
+    let f = wrap_callback f in
     match kind with
     | Custom rb -> create_custom f rb
     | Regular { offset; interval } ->
@@ -228,8 +231,6 @@ module Periodic = struct
 
   external start : t -> Loop.t -> unit = "lev_periodic_start"
 end
-
-let wrap_callback f t () = f t
 
 module Timer = struct
   type t

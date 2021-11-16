@@ -123,3 +123,16 @@ let%expect_test "child" =
   Child.start child loop;
   Loop.run_until_done loop;
   [%expect {| exited with status 42 |}]
+
+let%expect_test "periodic" =
+  let loop = Loop.create () in
+  let periodic =
+    Periodic.create
+      (fun p ->
+        print_endline "periodic fired";
+        Periodic.stop p loop)
+      (Regular { offset = Timestamp.of_float 0.1; interval = None })
+  in
+  Periodic.start periodic loop;
+  Loop.run_until_done loop;
+  [%expect {| periodic fired |}]
