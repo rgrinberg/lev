@@ -71,7 +71,6 @@ DEF_BACKEND_SET(embeddable, ev_embeddable_backends)
     CAMLparam2(v_w, v_ev);                                                     \
     ev_##__name *w = Ev_val(ev_##__name, v_w);                                 \
     struct ev_loop *ev = (struct ev_loop *)Nativeint_val(v_ev);                \
-    caml_remove_generational_global_root((value *)(&(w->data)));               \
     ev_##__name##_stop(ev, w);                                                 \
     CAMLreturn(Val_unit);                                                      \
   }
@@ -121,6 +120,7 @@ static long hash_watcher(value watcher) {
 
 static void finalize_watcher(value v_watcher) {
   ev_watcher *w = Ev_watcher_val(v_watcher);
+  caml_remove_generational_global_root((value *)(&(w->data)));
   caml_stat_free(w->data);
 }
 
