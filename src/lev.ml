@@ -110,7 +110,7 @@ module Loop = struct
 
   external destroy : t -> unit = "lev_loop_destroy"
 
-  let now_update _ = ()
+  external now_update : t -> unit = "lev_loop_now_update"
 
   external run : t -> bool = "lev_ev_run"
 
