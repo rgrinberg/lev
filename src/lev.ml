@@ -233,9 +233,9 @@ end
 module Signal = struct
   type t
 
-  let start _ _ = assert false
+  external stop : t -> Loop.t -> unit = "lev_signal_stop"
 
-  let stop _ _ = assert false
+  external start : t -> Loop.t -> unit = "lev_signal_start"
 
   let create _ = assert false
 end
@@ -278,9 +278,9 @@ end
 module Stat = struct
   type t
 
-  let start _ _ = assert false
+  external stop : t -> Loop.t -> unit = "lev_stat_stop"
 
-  let stop _ _ = assert false
+  external start : t -> Loop.t -> unit = "lev_stat_start"
 
   let create ?interval _ ~path:_ =
     ignore interval;
