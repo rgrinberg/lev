@@ -142,6 +142,12 @@ CAMLprim value lev_loop_backend(value v_loop) {
   CAMLreturn(Val_int(ev_backend(loop)));
 }
 
+CAMLprim value lev_loop_depth(value v_loop) {
+  CAMLparam1(v_loop);
+  struct ev_loop *loop = (struct ev_loop *)Nativeint_val(v_loop);
+  CAMLreturn(Val_int(ev_depth(loop)));
+}
+
 CAMLprim value lev_loop_now_update(value v_loop) {
   CAMLparam1(v_loop);
   struct ev_loop *loop = (struct ev_loop *)Nativeint_val(v_loop);

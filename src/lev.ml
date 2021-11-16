@@ -121,7 +121,7 @@ module Loop = struct
     | `Otherwise -> run_until_done t
     | `No_more_active_watchers -> ()
 
-  let depth _ = 0
+  external depth : t -> int = "lev_loop_depth"
 
   let break _ _ = ()
 
