@@ -187,6 +187,13 @@ static void lev_watcher_cb(EV_P_ ev_watcher *w, int revents) {
   caml_callback((value)w->data, Val_unit);
 }
 
+static ev_tstamp lev_periodic_reschedule_cb(ev_periodic *w, ev_tstamp now) {
+  CAMLparam0();
+  CAMLlocal1(v_stamp);
+  v_stamp = caml_callback((value)w->data, caml_copy_double(now));
+  double result = Double_val(v_stamp);
+  CAMLdrop;
+  return result;
 }
 
 CAMLprim value lev_io_read_code(value v_unit) {
@@ -283,19 +290,50 @@ CAMLprim value lev_timer_again(value v_timer, value v_ev) {
 
 CAMLprim value lev_periodic_create_regular(value v_cb, value v_offset,
                                            value v_interval) {
-  caml_failwith("TODO");
+  CAMLparam3(v_cb, v_offset, v_interval);
+  CAMLlocal2(v_periodic, v_cb_applied);
+  ev_periodic *periodic = caml_stat_alloc(sizeof(ev_periodic));
+  ev_periodic_init(periodic, Cb_for(ev_periodic), Int_val(v_offset),
+                   Int_val(v_interval), NULL);
+  v_periodic =
+      caml_alloc_custom(&watcher_ops, sizeof(struct ev_periodic *), 0, 1);
+  Ev_periodic_val(v_periodic) = periodic;
+  v_cb_applied = caml_callback(v_cb, v_periodic);
+  periodic->data = (void *)v_cb_applied;
+  caml_register_generational_global_root((value *)(&(periodic->data)));
+  CAMLreturn(v_periodic);
 }
 
 CAMLprim value lev_periodic_create_custom(value v_cb, value v_reschedule) {
-  caml_failwith("TODO");
+  CAMLparam2(v_cb, v_reschedule);
+  CAMLlocal2(v_periodic, v_cb_applied);
+  ev_periodic *periodic = caml_stat_alloc(sizeof(ev_periodic));
+  ev_periodic_init(periodic, Cb_for(ev_periodic), 0, 0,
+                   lev_periodic_reschedule_cb);
+  v_periodic =
+      caml_alloc_custom(&watcher_ops, sizeof(struct ev_periodic *), 0, 1);
+  Ev_periodic_val(v_periodic) = periodic;
+  v_cb_applied = caml_callback(v_cb, v_periodic);
+  periodic->data = (void *)v_cb_applied;
+  caml_register_generational_global_root((value *)(&(periodic->data)));
+  CAMLreturn(v_periodic);
 }
 
 CAMLprim value lev_periodic_start(value v_periodic, value v_ev) {
-  caml_failwith("TODO");
+  CAMLparam2(v_periodic, v_ev);
+  ev_periodic *periodic = Ev_periodic_val(v_periodic);
+  struct ev_loop *ev = (struct ev_loop *)Nativeint_val(v_ev);
+  ev_periodic_start(ev, periodic);
+  CAMLreturn(Val_unit);
 }
 
 CAMLprim value lev_periodic_stop(value v_periodic, value v_ev) {
-  caml_failwith("TODO");
+  CAMLparam2(v_periodic, v_ev);
+  ev_periodic *periodic = Ev_periodic_val(v_periodic);
+  struct ev_loop *ev = (struct ev_loop *)Nativeint_val(v_ev);
+  caml_remove_generational_global_root((value *)(&(periodic->data)));
+  ev_periodic_stop(ev, periodic);
+  CAMLreturn(Val_unit);
 }
 
 CAMLprim value lev_cleanup_start(value v_cleanup, value v_ev) {
