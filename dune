@@ -1,0 +1,8 @@
+(rule
+ (mode promote)
+ (deps
+  (:dep README.cpp.md)
+  (source_tree example/))
+ (target README.md)
+ (action
+  (run cppo -n %{dep} -o %{target})))
