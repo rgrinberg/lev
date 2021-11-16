@@ -20,6 +20,7 @@
 #include <caml/signals.h>
 #include <caml/threads.h>
 
+#define Ev_val(__typ, __v) *(struct __typ **)Data_custom_val(__v)
 #define Ev_watcher_val(v) *(struct ev_watcher **)Data_custom_val(v)
 #define Ev_io_val(v) *(struct ev_io **)Data_custom_val(v)
 #define Ev_child_val(v) *(struct ev_child **)Data_custom_val(v)
@@ -54,6 +55,23 @@ DEF_BACKEND(iouring, EVBACKEND_IOURING)
 DEF_BACKEND_SET(supported, ev_supported_backends)
 DEF_BACKEND_SET(recommended, ev_recommended_backends)
 DEF_BACKEND_SET(embeddable, ev_embeddable_backends)
+
+#define DEF_STOP(__name)                                                       \
+  CAMLprim value lev_##__name##_stop(value v_w, value v_ev) {                  \
+    CAMLparam2(v_w, v_ev);                                                     \
+    ev_##__name *w = Ev_val(ev_##__name, v_w);                                 \
+    struct ev_loop *ev = (struct ev_loop *)Nativeint_val(v_ev);                \
+    caml_remove_generational_global_root((value *)(&(w->data)));               \
+      ev_##__name##_stop(ev, w);                                               \
+    CAMLreturn(Val_unit);                                                      \
+  }
+
+DEF_STOP(cleanup)
+DEF_STOP(io)
+DEF_STOP(timer)
+DEF_STOP(periodic)
+DEF_STOP(child)
+DEF_STOP(signal)
 
 static int compare_watchers(value a, value b) {
   return (int)((char *)Ev_watcher_val(a) - (char *)Ev_watcher_val(b));
@@ -233,15 +251,6 @@ CAMLprim value lev_io_start(value v_io, value v_ev) {
   CAMLreturn(Val_unit);
 }
 
-CAMLprim value lev_io_stop(value v_io, value v_ev) {
-  CAMLparam2(v_io, v_ev);
-  ev_io *io = Ev_io_val(v_io);
-  struct ev_loop *ev = (struct ev_loop *)Nativeint_val(v_ev);
-  caml_remove_generational_global_root((value *)(&(io->data)));
-  ev_io_stop(ev, io);
-  CAMLreturn(Val_unit);
-}
-
 CAMLprim value lev_timer_create(value v_cb, value v_after, value v_repeat) {
   CAMLparam3(v_cb, v_after, v_repeat);
   CAMLlocal2(v_timer, v_cb_applied);
@@ -261,15 +270,6 @@ CAMLprim value lev_timer_start(value v_timer, value v_ev) {
   ev_timer *timer = Ev_timer_val(v_timer);
   struct ev_loop *ev = (struct ev_loop *)Nativeint_val(v_ev);
   ev_timer_start(ev, timer);
-  CAMLreturn(Val_unit);
-}
-
-CAMLprim value lev_timer_stop(value v_timer, value v_ev) {
-  CAMLparam2(v_timer, v_ev);
-  ev_timer *timer = Ev_timer_val(v_timer);
-  struct ev_loop *ev = (struct ev_loop *)Nativeint_val(v_ev);
-  caml_remove_generational_global_root((value *)(&(timer->data)));
-  ev_timer_stop(ev, timer);
   CAMLreturn(Val_unit);
 }
 
@@ -327,29 +327,11 @@ CAMLprim value lev_periodic_start(value v_periodic, value v_ev) {
   CAMLreturn(Val_unit);
 }
 
-CAMLprim value lev_periodic_stop(value v_periodic, value v_ev) {
-  CAMLparam2(v_periodic, v_ev);
-  ev_periodic *periodic = Ev_periodic_val(v_periodic);
-  struct ev_loop *ev = (struct ev_loop *)Nativeint_val(v_ev);
-  caml_remove_generational_global_root((value *)(&(periodic->data)));
-  ev_periodic_stop(ev, periodic);
-  CAMLreturn(Val_unit);
-}
-
 CAMLprim value lev_cleanup_start(value v_cleanup, value v_ev) {
   CAMLparam2(v_cleanup, v_ev);
   ev_cleanup *cleanup = Ev_cleanup_val(v_cleanup);
   struct ev_loop *ev = (struct ev_loop *)Nativeint_val(v_ev);
   ev_cleanup_start(ev, cleanup);
-  CAMLreturn(Val_unit);
-}
-
-CAMLprim value lev_cleanup_stop(value v_cleanup, value v_ev) {
-  CAMLparam2(v_cleanup, v_ev);
-  ev_cleanup *cleanup = Ev_cleanup_val(v_cleanup);
-  struct ev_loop *ev = (struct ev_loop *)Nativeint_val(v_ev);
-  caml_remove_generational_global_root((value *)(&(cleanup->data)));
-  ev_cleanup_stop(ev, cleanup);
   CAMLreturn(Val_unit);
 }
 
@@ -372,15 +354,6 @@ CAMLprim value lev_child_start(value v_child, value v_ev) {
   ev_child *child = Ev_child_val(v_child);
   struct ev_loop *ev = (struct ev_loop *)Nativeint_val(v_ev);
   ev_child_start(ev, child);
-  CAMLreturn(Val_unit);
-}
-
-CAMLprim value lev_child_stop(value v_child, value v_ev) {
-  CAMLparam2(v_child, v_ev);
-  ev_child *child = Ev_child_val(v_child);
-  struct ev_loop *ev = (struct ev_loop *)Nativeint_val(v_ev);
-  caml_remove_generational_global_root((value *)(&(child->data)));
-  ev_child_stop(ev, child);
   CAMLreturn(Val_unit);
 }
 
