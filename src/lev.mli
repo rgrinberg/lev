@@ -76,7 +76,9 @@ module Loop : sig
 
   val depth : t -> int
 
-  val break : t -> [ `Cancel | `One | `All ] -> unit
+  type break = One | All | Cancel
+
+  val break : t -> break -> unit
 
   val backend : t -> Backend.t
 

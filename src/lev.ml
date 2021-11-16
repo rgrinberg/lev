@@ -123,6 +123,8 @@ module Loop = struct
 
   external depth : t -> int = "lev_loop_depth"
 
+  type break = One | All | Cancel
+
   let break _ _ = ()
 
   external backend : t -> Backend.Set.t = "lev_loop_backend"
