@@ -145,7 +145,7 @@ end
 module Stat : sig
   include Watcher
 
-  val create : ?interval:Timestamp.t -> (Loop.t -> unit) -> path:string -> t
+  val create : ?interval:Timestamp.t -> path:string -> (t -> unit) -> t
 end
 
 module Child : sig

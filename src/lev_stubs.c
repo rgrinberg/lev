@@ -31,11 +31,21 @@
 #define Cb_for(__t)                                                            \
   (void (*)(struct ev_loop *, struct __t *, int)) lev_watcher_cb
 
+#define DEF_CONST(__name, __value)                                             \
+  CAMLprim value __name(value v_unit) {                                        \
+    CAMLparam1(v_unit);                                                        \
+    CAMLreturn(Int_val(__value));                                              \
+  }
+
 #define DEF_BACKEND(__name, __value)                                           \
   CAMLprim value lev_backend_##__name(value v_unit) {                          \
     CAMLparam1(v_unit);                                                        \
     CAMLreturn(Int_val(__value));                                              \
   }
+
+DEF_CONST(lev_loop_break_cancel_code, EVBREAK_CANCEL)
+DEF_CONST(lev_loop_break_one_code, EVBREAK_ONE)
+DEF_CONST(lev_loop_break_all_code, EVBREAK_ALL)
 
 DEF_BACKEND(poll, EVBACKEND_POLL)
 DEF_BACKEND(select, EVBACKEND_SELECT)
@@ -176,6 +186,13 @@ CAMLprim value lev_loop_destroy(value v_loop) {
   CAMLreturn(Val_unit);
 }
 
+CAMLprim value lev_loop_break(value v_loop, value v_break) {
+  CAMLparam2(v_loop, v_break);
+  struct ev_loop *loop = (struct ev_loop *)Nativeint_val(v_loop);
+  ev_break(loop, Int_val(v_break));
+  CAMLreturn(Val_unit);
+}
+
 CAMLprim value lev_ev_default(value v_unit) {
   CAMLparam1(v_unit);
   struct ev_loop *loop = ev_default_loop(0);
@@ -246,7 +263,13 @@ static void lev_watcher_cb(EV_P_ ev_watcher *w, int revents) {
   caml_callback((value)w->data, Val_unit);
 }
 
+struct periodic_cbs {
+  value watcher;
+  value reschedule;
+};
+
 static ev_tstamp lev_periodic_reschedule_cb(ev_periodic *w, ev_tstamp now) {
+  // TODO do we need this?
   CAMLparam0();
   CAMLlocal1(v_stamp);
   v_stamp = caml_callback((value)w->data, caml_copy_double(now));
@@ -412,4 +435,19 @@ CAMLprim value lev_async_pending(value v_async) {
   CAMLparam1(v_async);
   ev_async *async = Ev_val(ev_async, v_async);
   CAMLreturn(Val_bool(ev_async_pending(async)));
+}
+
+CAMLprim value lev_stat_create(value v_cb, value v_path, value v_interval) {
+  CAMLparam3(v_cb, v_path, v_interval);
+  CAMLlocal2(v_w, v_cb_applied);
+  ev_stat *w = caml_stat_alloc(sizeof(ev_stat));
+  const char *path = String_val(v_path);
+  float interval = Double_val(v_interval);
+  ev_stat_init(w, Cb_for(ev_stat), path, interval);
+  v_w = caml_alloc_custom(&watcher_ops, sizeof(struct ev_stat *), 0, 1);
+  Ev_val(ev_stat, v_w) = w;
+  v_cb_applied = caml_callback(v_cb, v_w);
+  w->data = (void *)v_cb_applied;
+  caml_register_generational_global_root((value *)(&(w->data)));
+  CAMLreturn(v_w);
 }

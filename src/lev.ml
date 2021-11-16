@@ -284,9 +284,10 @@ module Stat = struct
 
   external start : t -> Loop.t -> unit = "lev_stat_start"
 
-  let create ?interval _ ~path:_ =
-    ignore interval;
-    assert false
+  external create : (t -> unit) -> string -> Timestamp.t -> t
+    = "lev_stat_create"
+
+  let create ?(interval = 0.) ~path f = create f path interval
 end
 
 module Embed = struct
