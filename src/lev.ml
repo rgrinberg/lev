@@ -286,3 +286,61 @@ module Stat = struct
     ignore interval;
     assert false
 end
+
+module Embed = struct
+  type t
+
+  external stop : t -> Loop.t -> unit = "lev_embed_stop"
+
+  external start : t -> Loop.t -> unit = "lev_embed_start"
+
+  type sweep = Automatic | Manual of (t -> unit)
+
+  let create _ = assert false
+
+  let sweep _ = assert false
+end
+
+module Idle = struct
+  type t
+
+  external stop : t -> Loop.t -> unit = "lev_idle_stop"
+
+  external start : t -> Loop.t -> unit = "lev_idle_start"
+
+  let create _ = assert false
+end
+
+module Check = struct
+  type t
+
+  external stop : t -> Loop.t -> unit = "lev_check_stop"
+
+  external start : t -> Loop.t -> unit = "lev_check_start"
+
+  let create _ = assert false
+end
+
+module Async = struct
+  type t
+
+  external stop : t -> Loop.t -> unit = "lev_async_stop"
+
+  external start : t -> Loop.t -> unit = "lev_async_start"
+
+  let pending _ = assert false
+
+  let send _ _ = assert false
+
+  let create _ = assert false
+end
+
+module Prepare = struct
+  type t
+
+  external stop : t -> Loop.t -> unit = "lev_prepare_stop"
+
+  external start : t -> Loop.t -> unit = "lev_prepare_start"
+
+  let create _ = assert false
+end

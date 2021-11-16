@@ -168,3 +168,41 @@ module Cleanup : sig
 
   val create : (t -> unit) -> t
 end
+
+module Async : sig
+  include Watcher
+
+  val create : (t -> unit) -> t
+
+  val send : t -> Loop.t -> unit
+
+  val pending : t -> bool
+end
+
+module Check : sig
+  include Watcher
+
+  val create : (t -> unit) -> t
+end
+
+module Prepare : sig
+  include Watcher
+
+  val create : (t -> unit) -> t
+end
+
+module Idle : sig
+  include Watcher
+
+  val create : (t -> unit) -> t
+end
+
+module Embed : sig
+  include Watcher
+
+  type sweep = Automatic | Manual of (t -> unit)
+
+  val create : sweep -> Loop.t -> t
+
+  val sweep : t -> Loop.t -> unit
+end

@@ -72,6 +72,12 @@ DEF_STOP(timer)
 DEF_STOP(periodic)
 DEF_STOP(child)
 DEF_STOP(signal)
+DEF_STOP(stat)
+DEF_STOP(embed)
+DEF_STOP(idle)
+DEF_STOP(check)
+DEF_STOP(async)
+DEF_STOP(prepare)
 
 #define DEF_START(__name)                                                      \
   CAMLprim value lev_##__name##_start(value v_w, value v_ev) {                 \
@@ -88,6 +94,12 @@ DEF_START(timer)
 DEF_START(periodic)
 DEF_START(child)
 DEF_START(signal)
+DEF_START(stat)
+DEF_START(embed)
+DEF_START(idle)
+DEF_START(check)
+DEF_START(async)
+DEF_START(prepare)
 
 static int compare_watchers(value a, value b) {
   return (int)((char *)Ev_watcher_val(a) - (char *)Ev_watcher_val(b));
