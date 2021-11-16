@@ -154,10 +154,7 @@ module Child : sig
   type trace = Terminate | Terminate_stop_or_continue
 
   val create :
-    (t -> pid:int -> Unix.process_status -> unit) ->
-    pid ->
-    trace ->
-    t
+    (t -> pid:int -> Unix.process_status -> unit) -> pid -> trace -> t
 end
 
 module Signal : sig
