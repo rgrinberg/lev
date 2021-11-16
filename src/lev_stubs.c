@@ -184,7 +184,9 @@ static void lev_child_cb(EV_P_ ev_child *w, int revents) {
 }
 
 static void lev_watcher_cb(EV_P_ ev_watcher *w, int revents) {
-  caml_callback((value)w->data, caml_copy_nativeint((intnat)loop));
+  caml_callback((value)w->data, Val_unit);
+}
+
 }
 
 CAMLprim value lev_io_read_code(value v_unit) {
