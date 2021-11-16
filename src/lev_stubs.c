@@ -399,3 +399,17 @@ CAMLprim value lev_signal_create(value v_cb, value v_signal) {
   caml_register_generational_global_root((value *)(&(w->data)));
   CAMLreturn(v_w);
 }
+
+CAMLprim value lev_async_send(value v_async, value v_loop) {
+  CAMLparam2(v_loop, v_async);
+  struct ev_loop *loop = (struct ev_loop *)Nativeint_val(v_loop);
+  ev_async *async = Ev_val(ev_async, v_async);
+  ev_async_send(loop, async);
+  CAMLreturn(Val_unit);
+}
+
+CAMLprim value lev_async_pending(value v_async) {
+  CAMLparam1(v_async);
+  ev_async *async = Ev_val(ev_async, v_async);
+  CAMLreturn(Val_bool(ev_async_pending(async)));
+}

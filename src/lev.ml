@@ -330,9 +330,9 @@ module Async = struct
 
   external start : t -> Loop.t -> unit = "lev_async_start"
 
-  let pending _ = assert false
+  external pending : t -> bool = "lev_async_pending"
 
-  let send _ _ = assert false
+  external send : t -> Loop.t -> unit = "lev_async_send"
 
   external create : (t -> unit) -> t = "lev_async_create"
 end
