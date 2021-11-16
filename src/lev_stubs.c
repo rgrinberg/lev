@@ -124,8 +124,26 @@ static void finalize_watcher(value v_watcher) {
   caml_stat_free(w);
 }
 
+struct periodic_cbs {
+  value watcher;
+  value reschedule;
+};
+
+static void finalize_periodic_custom(value v_watcher) {
+  ev_periodic *w = Ev_periodic_val(v_watcher);
+  struct periodic_cbs *cbs = (struct periodic_cbs *)w->data;
+  caml_remove_generational_global_root(&(cbs->watcher));
+  caml_remove_generational_global_root(&(cbs->reschedule));
+  caml_stat_free(cbs);
+  caml_stat_free(w);
+}
+
 static struct custom_operations watcher_ops = {
     "lev.watcher", finalize_watcher,         compare_watchers,
+    hash_watcher,  custom_serialize_default, custom_deserialize_default};
+
+static struct custom_operations periodic_custom_ops = {
+    "lev.watcher", finalize_periodic_custom, compare_watchers,
     hash_watcher,  custom_serialize_default, custom_deserialize_default};
 
 CAMLprim value lev_version(value v_unit) {
@@ -262,19 +280,21 @@ static void lev_watcher_cb(EV_P_ ev_watcher *w, int revents) {
   caml_callback((value)w->data, Val_unit);
 }
 
-struct periodic_cbs {
-  value watcher;
-  value reschedule;
-};
-
 static ev_tstamp lev_periodic_reschedule_cb(ev_periodic *w, ev_tstamp now) {
   // TODO do we need this?
   CAMLparam0();
   CAMLlocal1(v_stamp);
-  v_stamp = caml_callback((value)w->data, caml_copy_double(now));
+  struct periodic_cbs *cbs = (struct periodic_cbs *)w->data;
+  v_stamp = caml_callback(cbs->reschedule, caml_copy_double(now));
   double result = Double_val(v_stamp);
   CAMLdrop;
   return result;
+}
+
+static void lev_periodic_watcher_cb(EV_P_ ev_periodic *w, int revents) {
+  // TODO do we need this?
+  struct periodic_cbs *cbs = (struct periodic_cbs *)w->data;
+  caml_callback(cbs->watcher, Val_unit);
 }
 
 CAMLprim value lev_io_read_code(value v_unit) {
@@ -353,16 +373,21 @@ CAMLprim value lev_periodic_create_regular(value v_cb, value v_offset,
 
 CAMLprim value lev_periodic_create_custom(value v_cb, value v_reschedule) {
   CAMLparam2(v_cb, v_reschedule);
-  CAMLlocal2(v_periodic, v_cb_applied);
+  CAMLlocal3(v_periodic, v_cb_applied, v_reschedule_applied);
   ev_periodic *periodic = caml_stat_alloc(sizeof(ev_periodic));
-  ev_periodic_init(periodic, Cb_for(ev_periodic), 0, 0,
+  ev_periodic_init(periodic, lev_periodic_watcher_cb, 0, 0,
                    lev_periodic_reschedule_cb);
   v_periodic =
       caml_alloc_custom(&watcher_ops, sizeof(struct ev_periodic *), 0, 1);
   Ev_periodic_val(v_periodic) = periodic;
+  struct periodic_cbs *cbs = caml_stat_alloc(sizeof(struct periodic_cbs));
   v_cb_applied = caml_callback(v_cb, v_periodic);
-  periodic->data = (void *)v_cb_applied;
-  caml_register_generational_global_root((value *)(&(periodic->data)));
+  v_reschedule_applied = caml_callback(v_reschedule, v_periodic);
+  cbs->watcher = v_cb_applied;
+  cbs->reschedule = v_reschedule_applied;
+  periodic->data = (void *)cbs;
+  caml_register_generational_global_root((value *)(&(cbs->watcher)));
+  caml_register_generational_global_root((value *)(&(cbs->reschedule)));
   CAMLreturn(v_periodic);
 }
 

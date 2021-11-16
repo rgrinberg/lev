@@ -124,7 +124,7 @@ let%expect_test "child" =
   Loop.run_until_done loop;
   [%expect {| exited with status 42 |}]
 
-let%expect_test "periodic" =
+let%expect_test "periodic - regular" =
   let loop = Loop.create () in
   let periodic =
     Periodic.create
@@ -132,6 +132,22 @@ let%expect_test "periodic" =
         print_endline "periodic fired";
         Periodic.stop p loop)
       (Regular { offset = Timestamp.of_float 0.1; interval = None })
+  in
+  Periodic.start periodic loop;
+  Loop.run_until_done loop;
+  [%expect {| periodic fired |}]
+
+let%expect_test "periodic - custom" =
+  let loop = Loop.create () in
+  let periodic =
+    Periodic.create
+      (fun p ->
+        print_endline "periodic fired";
+        Periodic.stop p loop)
+      (Custom
+         (fun _ ~now ->
+           let now = Timestamp.to_float now in
+           Timestamp.of_float (now +. 0.2)))
   in
   Periodic.start periodic loop;
   Loop.run_until_done loop;
