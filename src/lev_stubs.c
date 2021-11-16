@@ -121,12 +121,11 @@ static long hash_watcher(value watcher) {
 static void finalize_watcher(value v_watcher) {
   ev_watcher *w = Ev_watcher_val(v_watcher);
   caml_remove_generational_global_root((value *)(&(w->data)));
-  caml_stat_free(w->data);
+  caml_stat_free(w);
 }
 
 static struct custom_operations watcher_ops = {
-    // TODO free
-    "lev.watcher", custom_finalize_default,  compare_watchers,
+    "lev.watcher", finalize_watcher,         compare_watchers,
     hash_watcher,  custom_serialize_default, custom_deserialize_default};
 
 CAMLprim value lev_version(value v_unit) {
