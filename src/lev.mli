@@ -100,7 +100,7 @@ module Periodic : sig
     | Regular of { offset : Timestamp.t; interval : Timestamp.t option }
     | Custom of (t -> now:Timestamp.t -> Timestamp.t)
 
-  val create : (t -> Loop.t -> unit) -> kind -> t
+  val create : (t -> unit) -> kind -> t
 end
 
 module Io : sig

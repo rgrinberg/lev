@@ -192,11 +192,11 @@ module Periodic = struct
     | Regular of { offset : Timestamp.t; interval : Timestamp.t option }
     | Custom of (t -> now:Timestamp.t -> Timestamp.t)
 
-  external create_regular : (t -> Loop.t -> unit) -> float -> float -> t
+  external create_regular : (t -> unit) -> float -> float -> t
     = "lev_periodic_create_regular"
 
   external create_custom :
-    (t -> Loop.t -> unit) -> (t -> now:Timestamp.t -> Timestamp.t) -> t
+    (t -> unit) -> (t -> now:Timestamp.t -> Timestamp.t) -> t
     = "lev_periodic_create_custom"
 
   let create f kind =
