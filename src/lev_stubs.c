@@ -365,3 +365,11 @@ CAMLprim value lev_child_create(value v_cb, value v_pid, value v_trace) {
   caml_register_generational_global_root((value *)(&(child->data)));
   CAMLreturn(v_child);
 }
+
+CAMLprim value lev_embed_sweep(value v_embed, value v_loop) {
+  CAMLparam2(v_loop, v_embed);
+  struct ev_loop *loop = (struct ev_loop *)Nativeint_val(v_loop);
+  ev_embed *embed = Ev_val(ev_embed, v_embed);
+  ev_embed_sweep(loop, embed);
+  CAMLreturn(Val_unit);
+}

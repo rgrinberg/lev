@@ -298,7 +298,7 @@ module Embed = struct
 
   let create _ = assert false
 
-  let sweep _ = assert false
+  external sweep : t -> Loop.t -> unit = "lev_embed_sweep"
 end
 
 module Idle = struct
