@@ -386,3 +386,16 @@ CAMLprim value lev_embed_sweep(value v_embed, value v_loop) {
   ev_embed_sweep(loop, embed);
   CAMLreturn(Val_unit);
 }
+
+CAMLprim value lev_signal_create(value v_cb, value v_signal) {
+  CAMLparam2(v_cb, v_signal);
+  CAMLlocal2(v_w, v_cb_applied);
+  ev_signal *w = caml_stat_alloc(sizeof(ev_signal));
+  ev_signal_init(w, Cb_for(ev_signal), Int_val(v_signal));
+  v_w = caml_alloc_custom(&watcher_ops, sizeof(struct ev_signal *), 0, 1);
+  Ev_val(ev_signal, v_w) = w;
+  v_cb_applied = caml_callback(v_cb, v_w);
+  w->data = (void *)v_cb_applied;
+  caml_register_generational_global_root((value *)(&(w->data)));
+  CAMLreturn(v_w);
+}

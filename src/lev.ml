@@ -239,7 +239,7 @@ module Signal = struct
 
   external start : t -> Loop.t -> unit = "lev_signal_start"
 
-  let create _ = assert false
+  external create : (t -> unit) -> signal:int -> t = "lev_signal_create"
 end
 
 module Child = struct
