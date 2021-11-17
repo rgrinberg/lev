@@ -1,5 +1,8 @@
 # Lev - OCaml bindings to libev
 
+[libev]: http://software.schmorp.de/pkg/libev.html
+[libevdoc]: http://pod.tst.eu/http://cvs.schmorp.de/libev/ev.pod
+
 ## Abstract
 
 [libev](libev) by Marc Lehmann is a minimal & portable event loop library. Lev
@@ -20,7 +23,7 @@ let () =
   Unix.close stdin_w;
   Unix.close stdout_r;
   Unix.close stderr_r;
-  let _pid =
+  let pid =
     Unix.create_process "sh" [| "sh"; "-c"; "exit 42" |] stdin stdout stderr
   in
   let child =
@@ -44,8 +47,6 @@ document where it differs from libev's conventions.
 
 ## License
 
-`src/` is offered under ISC (see src/LICENSE.md).
 `vendor/` is under Marc Lehmann's original terms (see vendor/LICENSE).
 
-[libev]: http://software.schmorp.de/pkg/libev.html
-[libevdoc]: http://pod.tst.eu/http://cvs.schmorp.de/libev/ev.pod
+Everything else is offered under ISC (see src/LICENSE.md).
