@@ -166,3 +166,18 @@ let%expect_test "check/idle/prepare" =
     prepare
     check
     idle |}]
+
+let%expect_test "async" =
+  let loop = Loop.create () in
+  let async = Async.create (fun _ -> print_endline "async fired") in
+  let prepare =
+    Prepare.create (fun _ ->
+        print_endline "firing async";
+        Async.send async loop)
+  in
+  Prepare.start prepare loop;
+  Async.start async loop;
+  ignore (Loop.run loop);
+  [%expect {|
+    firing async
+    async fired |}]
