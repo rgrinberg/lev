@@ -1,5 +1,6 @@
 open Printf
 open Lev
+module List = ListLabels
 
 let%expect_test "version" =
   let major, minor = ev_version () in
@@ -152,3 +153,16 @@ let%expect_test "periodic - custom" =
   Periodic.start periodic loop;
   Loop.run_until_done loop;
   [%expect {| periodic fired |}]
+
+let%expect_test "check/idle/prepare" =
+  let loop = Loop.create () in
+  let check = Check.create (fun _ -> print_endline "check") in
+  let idle = Idle.create (fun _ -> print_endline "idle") in
+  let prepare = Prepare.create (fun _ -> print_endline "prepare") in
+  [ Check.start check; Idle.start idle; Prepare.start prepare ]
+  |> List.iter ~f:(fun f -> f loop);
+  ignore (Loop.run loop);
+  [%expect {|
+    prepare
+    check
+    idle |}]
