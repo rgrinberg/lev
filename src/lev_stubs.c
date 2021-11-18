@@ -36,13 +36,15 @@
 #define DEF_CONST(__name, __value)                                             \
   CAMLprim value __name(value v_unit) {                                        \
     CAMLparam1(v_unit);                                                        \
-    CAMLreturn(Int_val(__value));                                              \
+    CAMLreturn(Val_long(__value));                                             \
   }
 
 #define DEF_BACKEND(__name, __value)                                           \
   CAMLprim value lev_backend_##__name(value v_unit) {                          \
     CAMLparam1(v_unit);                                                        \
-    CAMLreturn(Int_val(__value));                                              \
+    CAMLreturn(Val_long(__value));                                             \
+  }
+
   }
 
 DEF_CONST(lev_loop_break_cancel_code, EVBREAK_CANCEL)
