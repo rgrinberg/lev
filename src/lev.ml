@@ -256,7 +256,9 @@ module Signal = struct
 
   external start : t -> Loop.t -> unit = "lev_signal_start"
 
-  external create : (t -> unit) -> signal:int -> t = "lev_signal_create"
+  external create : (t -> unit -> unit) -> signal:int -> t = "lev_signal_create"
+
+  let create f ~signal = create (wrap_callback f) ~signal
 end
 
 module Child = struct
@@ -301,12 +303,12 @@ module Stat = struct
 
   external start : t -> Loop.t -> unit = "lev_stat_start"
 
-  external create : (t -> unit) -> string -> Timestamp.t -> t
+  external create : (t -> unit -> unit) -> string -> Timestamp.t -> t
     = "lev_stat_create"
 
   external stat : t -> Unix.stats = "lev_stat_stat"
 
-  let create ?(interval = 0.) ~path f = create f path interval
+  let create ?(interval = 0.) ~path f = create (wrap_callback f) path interval
 end
 
 module Embed = struct
@@ -330,7 +332,9 @@ module Idle = struct
 
   external start : t -> Loop.t -> unit = "lev_idle_start"
 
-  external create : (t -> unit) -> t = "lev_idle_create"
+  external create : (t -> unit -> unit) -> t = "lev_idle_create"
+
+  let create f = create (wrap_callback f)
 end
 
 module Check = struct
@@ -340,7 +344,9 @@ module Check = struct
 
   external start : t -> Loop.t -> unit = "lev_check_start"
 
-  external create : (t -> unit) -> t = "lev_check_create"
+  external create : (t -> unit -> unit) -> t = "lev_check_create"
+
+  let create f = create (wrap_callback f)
 end
 
 module Async = struct
@@ -354,7 +360,9 @@ module Async = struct
 
   external send : t -> Loop.t -> unit = "lev_async_send"
 
-  external create : (t -> unit) -> t = "lev_async_create"
+  external create : (t -> unit -> unit) -> t = "lev_async_create"
+
+  let create f = create (wrap_callback f)
 end
 
 module Prepare = struct
@@ -364,5 +372,7 @@ module Prepare = struct
 
   external start : t -> Loop.t -> unit = "lev_prepare_start"
 
-  external create : (t -> unit) -> t = "lev_prepare_create"
+  external create : (t -> unit -> unit) -> t = "lev_prepare_create"
+
+  let create f = create (wrap_callback f)
 end
