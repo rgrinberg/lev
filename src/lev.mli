@@ -32,6 +32,8 @@ module Backend : sig
   module Set : sig
     type t
 
+    val all : t
+
     type backend
 
     val mem : t -> backend -> bool
@@ -56,15 +58,45 @@ module Timestamp : sig
 end
 
 module Loop : sig
+  module Flag : sig
+    type t =
+      | Backend of Backend.t
+      | Auto
+      | Noenv
+      | Forkcheck
+      | Noinotify
+      | Signalfd
+      | Nosigmask
+      | Notimerfd
+
+    val to_int : t -> int
+
+    module Set : sig
+      type elt := t
+
+      type t
+
+      val singleton : elt -> t
+
+      val of_backend_set : Backend.Set.t -> t
+
+      val inter : t -> t -> t
+
+      val union : t -> t -> t
+
+      val negate : t -> t
+    end
+  end
+
   type t
 
   val now : t -> Timestamp.t
 
-  val default : unit -> t
+  val default : ?flags:Flag.Set.t -> unit -> t
   (** Use this one unless you have a strong reason. The default event loop is
       the only one that can handle child watchers. *)
 
-  val create : unit -> t
+  val create : ?flags:Flag.Set.t -> unit -> t
 
   val destroy : t -> unit
 

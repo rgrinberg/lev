@@ -19,6 +19,10 @@ struct
   let empty : t = 0
 
   let union x y = x lor y
+
+  let negate x = lnot x
+
+  let inter x y = x land y
 end
 
 module Backend = struct
@@ -76,11 +80,15 @@ module Backend = struct
     | Linuxaio -> linuxaio
     | Iouring -> iouring
 
-  module Set = Set (struct
-    type nonrec t = t
+  module Set = struct
+    include Set (struct
+      type nonrec t = t
 
-    let to_int = to_int
-  end)
+      let to_int = to_int
+    end)
+
+    let all = List.fold_left ~f:(fun x y -> to_int y lor x) all ~init:0
+  end
 
   external supported : unit -> Set.t = "lev_backend_supported"
 
@@ -100,11 +108,77 @@ module Timestamp = struct
 end
 
 module Loop = struct
+  module Flag = struct
+    type t =
+      | Backend of Backend.t
+      | Auto
+      | Noenv
+      | Forkcheck
+      | Noinotify
+      | Signalfd
+      | Nosigmask
+      | Notimerfd
+
+    external auto : unit -> int = "lev_loop_flags_auto"
+
+    let auto = auto ()
+
+    external noenv : unit -> int = "lev_loop_flags_noenv"
+
+    let noenv = noenv ()
+
+    external forkcheck : unit -> int = "lev_loop_flags_forkcheck"
+
+    let forkcheck = forkcheck ()
+
+    external noinotify : unit -> int = "lev_loop_flags_noinotify"
+
+    let noinotify = noinotify ()
+
+    external signalfd : unit -> int = "lev_loop_flags_signalfd"
+
+    let signalfd = signalfd ()
+
+    external nosigmask : unit -> int = "lev_loop_flags_nosigmask"
+
+    let nosigmask = nosigmask ()
+
+    external notimerfd : unit -> int = "lev_loop_flags_notimerfd"
+
+    let notimerfd = notimerfd ()
+
+    let to_int = function
+      | Backend b -> Backend.to_int b
+      | Auto -> auto
+      | Noenv -> noenv
+      | Forkcheck -> forkcheck
+      | Noinotify -> noinotify
+      | Signalfd -> signalfd
+      | Nosigmask -> nosigmask
+      | Notimerfd -> notimerfd
+
+    module Set = struct
+      include Set (struct
+        type nonrec t = t
+
+        let to_int = to_int
+      end)
+
+      let of_backend_set x = x
+    end
+  end
+
   type t
 
-  external default : unit -> t = "lev_ev_default"
+  let flags = Flag.Set.singleton Auto
 
-  external create : unit -> t = "lev_ev_create"
+  external default : int -> t = "lev_ev_default"
+
+  let default ?(flags = flags) () = default flags
+
+  external create : int -> t = "lev_ev_create"
+
+  let create ?(flags = flags) () = create flags
 
   external now : t -> Timestamp.t = "lev_ev_now"
 

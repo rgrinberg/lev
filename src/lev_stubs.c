@@ -45,6 +45,10 @@
     CAMLreturn(Val_long(__value));                                             \
   }
 
+#define DEF_LOOP_FLAG(__name, __value)                                         \
+  CAMLprim value lev_loop_flags_##__name(value v_unit) {                       \
+    CAMLparam1(v_unit);                                                        \
+    CAMLreturn(Val_long(__value));                                             \
   }
 
 DEF_CONST(lev_loop_break_cancel_code, EVBREAK_CANCEL)
@@ -59,6 +63,14 @@ DEF_BACKEND(devpoll, EVBACKEND_DEVPOLL)
 DEF_BACKEND(port, EVBACKEND_PORT)
 DEF_BACKEND(linuxaio, EVBACKEND_LINUXAIO)
 DEF_BACKEND(iouring, EVBACKEND_IOURING)
+
+DEF_LOOP_FLAG(auto, EVFLAG_AUTO)
+DEF_LOOP_FLAG(noenv, EVFLAG_NOENV)
+DEF_LOOP_FLAG(forkcheck, EVFLAG_FORKCHECK)
+DEF_LOOP_FLAG(noinotify, EVFLAG_NOINOTIFY)
+DEF_LOOP_FLAG(signalfd, EVFLAG_SIGNALFD)
+DEF_LOOP_FLAG(nosigmask, EVFLAG_NOSIGMASK)
+DEF_LOOP_FLAG(notimerfd, EVFLAG_NOTIMERFD)
 
 #define DEF_BACKEND_SET(__name, __value)                                       \
   CAMLprim value lev_backend_##__name(value v_unit) {                          \
@@ -225,9 +237,9 @@ CAMLprim value lev_loop_break(value v_loop, value v_break) {
   CAMLreturn(Val_unit);
 }
 
-CAMLprim value lev_ev_default(value v_unit) {
-  CAMLparam1(v_unit);
-  struct ev_loop *loop = ev_default_loop(0);
+CAMLprim value lev_ev_default(value v_flags) {
+  CAMLparam1(v_flags);
+  struct ev_loop *loop = ev_default_loop(Long_val(v_flags));
   if (!loop) {
     caml_failwith("unable to create loop");
   }
@@ -247,9 +259,9 @@ CAMLprim value lev_sleep(value v_ts) {
   CAMLreturn(Val_unit);
 }
 
-CAMLprim value lev_ev_create(value v_unit) {
-  CAMLparam1(v_unit);
-  struct ev_loop *loop = ev_loop_new(ev_recommended_backends());
+CAMLprim value lev_ev_create(value v_flags) {
+  CAMLparam1(v_flags);
+  struct ev_loop *loop = ev_loop_new(Long_val(v_flags));
   if (!loop) {
     caml_failwith("unable to create loop");
   }
