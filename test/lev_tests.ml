@@ -28,7 +28,7 @@ let%expect_test "suspend/resume" =
 
 let%expect_test "create and run" =
   let ev = Loop.create () in
-  (match Loop.run ev with
+  (match Loop.run ev Nowait with
   | `No_more_active_watchers -> ()
   | `Otherwise -> assert false);
   [%expect {||}]
@@ -79,7 +79,7 @@ let%expect_test "timer" =
         Timer.stop timer loop)
   in
   Timer.start timer loop;
-  ignore (Lev.Loop.run loop);
+  ignore (Lev.Loop.run loop Once);
   [%expect {|
     fired timer |}]
 
@@ -87,7 +87,7 @@ let%expect_test "cleanup callbacks" =
   let loop = Loop.create () in
   let cleanup = Cleanup.create (fun _ -> print_endline "cleanup") in
   Cleanup.start cleanup loop;
-  ignore (Loop.run loop);
+  ignore (Loop.run loop Nowait);
   Loop.destroy loop;
   [%expect {| cleanup |}]
 
@@ -152,7 +152,7 @@ let%expect_test "check/idle/prepare" =
   let prepare = Prepare.create (fun _ -> print_endline "prepare") in
   [ Check.start check; Idle.start idle; Prepare.start prepare ]
   |> List.iter ~f:(fun f -> f loop);
-  ignore (Loop.run loop);
+  ignore (Loop.run loop Once);
   [%expect {|
     prepare
     check
@@ -168,7 +168,7 @@ let%expect_test "async" =
   in
   Prepare.start prepare loop;
   Async.start async loop;
-  ignore (Loop.run loop);
+  ignore (Loop.run loop Once);
   [%expect {|
     firing async
     async fired |}]

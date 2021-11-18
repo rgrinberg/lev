@@ -186,12 +186,25 @@ module Loop = struct
 
   external now_update : t -> unit = "lev_loop_now_update"
 
-  external run : t -> bool = "lev_ev_run"
+  external run : t -> int -> bool = "lev_ev_run"
 
-  let run t = if run t then `Otherwise else `No_more_active_watchers
+  type run = Once | Nowait
+
+  external once : unit -> int = "lev_loop_run_once"
+
+  let once = once ()
+
+  external nowait : unit -> int = "lev_loop_run_nowait"
+
+  let nowait = nowait ()
+
+  let int_of_run = function Once -> once | Nowait -> nowait
+
+  let run t v =
+    if run t (int_of_run v) then `Otherwise else `No_more_active_watchers
 
   let rec run_until_done t =
-    match run t with
+    match run t Once with
     | `Otherwise -> run_until_done t
     | `No_more_active_watchers -> ()
 

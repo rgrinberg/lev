@@ -102,7 +102,9 @@ module Loop : sig
 
   val now_update : t -> unit
 
-  val run : t -> [ `No_more_active_watchers | `Otherwise ]
+  type run = Once | Nowait
+
+  val run : t -> run -> [ `No_more_active_watchers | `Otherwise ]
 
   val run_until_done : t -> unit
 

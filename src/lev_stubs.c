@@ -55,6 +55,9 @@ DEF_CONST(lev_loop_break_cancel_code, EVBREAK_CANCEL)
 DEF_CONST(lev_loop_break_one_code, EVBREAK_ONE)
 DEF_CONST(lev_loop_break_all_code, EVBREAK_ALL)
 
+DEF_CONST(lev_loop_run_once, EVRUN_ONCE);
+DEF_CONST(lev_loop_run_nowait, EVRUN_NOWAIT);
+
 DEF_BACKEND(poll, EVBACKEND_POLL)
 DEF_BACKEND(select, EVBACKEND_SELECT)
 DEF_BACKEND(epoll, EVBACKEND_EPOLL)
@@ -268,11 +271,12 @@ CAMLprim value lev_ev_create(value v_flags) {
   CAMLreturn(caml_copy_nativeint((intnat)loop));
 }
 
-CAMLprim value lev_ev_run(value v_ev) {
-  CAMLparam1(v_ev);
+CAMLprim value lev_ev_run(value v_ev, value v_run) {
+  CAMLparam2(v_ev, v_run);
   struct ev_loop *loop = (struct ev_loop *)Nativeint_val(v_ev);
+  int run = Int_val(v_run);
   caml_release_runtime_system();
-  bool ret = ev_run(loop, EVRUN_ONCE);
+  bool ret = ev_run(loop, run);
   caml_acquire_runtime_system();
   ev_invoke_pending(loop);
   CAMLreturn(Val_bool(ret));
