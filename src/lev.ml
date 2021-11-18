@@ -304,6 +304,8 @@ module Stat = struct
   external create : (t -> unit) -> string -> Timestamp.t -> t
     = "lev_stat_create"
 
+  external stat : t -> Unix.stats = "lev_stat_stat"
+
   let create ?(interval = 0.) ~path f = create f path interval
 end
 

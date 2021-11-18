@@ -2,6 +2,8 @@
 
 #include <stdbool.h>
 
+#include <math.h>
+
 #include <sys/types.h>
 #include <sys/wait.h>
 
@@ -474,4 +476,72 @@ CAMLprim value lev_stat_create(value v_cb, value v_path, value v_interval) {
   w->data = (void *)v_cb_applied;
   caml_register_generational_global_root((value *)(&(w->data)));
   CAMLreturn(v_w);
+}
+
+// below is taken from OCaml's stat implementation
+
+/* Transform a (seconds, nanoseconds) time stamp (in the style of
+   struct timespec) to a number of seconds in floating-point.
+   Make sure the integer part of the result is always equal to [seconds]
+   (issue #9490). */
+
+static double stat_timestamp(time_t sec, long nsec) {
+  /* The conversion of sec to FP is exact for the foreseeable future.
+     (It starts rounding when sec > 2^53, i.e. in 285 million years.) */
+  double s = (double)sec;
+  /* The conversion of nsec to fraction of seconds can round.
+     Still, we have 0 <= n < 1.0. */
+  double n = (double)nsec / 1e9;
+  /* The sum s + n can round up, hence s <= t + <= s + 1.0 */
+  double t = s + n;
+  /* Detect the "round up to s + 1" case and decrease t so that
+     its integer part is s. */
+  if (t == s + 1.0)
+    t = nextafter(t, s);
+  return t;
+}
+
+static int file_kind_table[] = {S_IFREG, S_IFDIR, S_IFCHR, S_IFBLK,
+                                S_IFLNK, S_IFIFO, S_IFSOCK};
+
+static value cst_to_constr(int n, int *tbl, int size, int deflt) {
+  int i;
+  for (i = 0; i < size; i++)
+    if (n == tbl[i])
+      return Val_int(i);
+  return Val_int(deflt);
+}
+
+// TODO eventually use the same configure script as in ocaml's unix
+#define NSEC(buf, field) 0
+#define Val_file_offset(fofs) caml_copy_int64(fofs)
+
+CAMLprim value lev_stat_stat(value v_w) {
+  CAMLparam1(v_w);
+  CAMLlocal5(v_atime, v_mtime, v_ctime, v_offset, v);
+  ev_stat *watcher_stat = Ev_val(ev_stat, v_w);
+  struct stat *stat = watcher_stat->data;
+
+  v_atime = caml_copy_double(stat_timestamp(stat->st_atime, NSEC(buf, a)));
+  v_mtime = caml_copy_double(stat_timestamp(stat->st_mtime, NSEC(buf, m)));
+  v_ctime = caml_copy_double(stat_timestamp(stat->st_ctime, NSEC(buf, c)));
+
+  bool use_64 = false;
+  v_offset = use_64 ? Val_file_offset(stat->st_size) : Val_int(stat->st_size);
+
+  v = caml_alloc_small(12, 0);
+  Field(v, 0) = Val_int(stat->st_dev);
+  Field(v, 1) = Val_int(stat->st_ino);
+  Field(v, 2) = cst_to_constr(stat->st_mode & S_IFMT, file_kind_table,
+                              sizeof(file_kind_table) / sizeof(int), 0);
+  Field(v, 3) = Val_int(stat->st_mode & 07777);
+  Field(v, 4) = Val_int(stat->st_nlink);
+  Field(v, 5) = Val_int(stat->st_uid);
+  Field(v, 6) = Val_int(stat->st_gid);
+  Field(v, 7) = Val_int(stat->st_rdev);
+  Field(v, 8) = v_offset;
+  Field(v, 9) = v_atime;
+  Field(v, 10) = v_mtime;
+  Field(v, 11) = v_ctime;
+  CAMLreturn(v);
 }
