@@ -320,7 +320,15 @@ module Embed = struct
 
   type sweep = Automatic | Manual of (t -> unit)
 
-  let create _ = assert false
+  external create_automatic : Loop.t -> t = "lev_embed_create_automatic"
+
+  external create_manual : (t -> unit -> unit) -> Loop.t -> t
+    = "lev_embed_create_manual"
+
+  let create sweep loop =
+    match sweep with
+    | Automatic -> create_automatic loop
+    | Manual f -> create_manual (wrap_callback f) loop
 
   external sweep : t -> Loop.t -> unit = "lev_embed_sweep"
 end

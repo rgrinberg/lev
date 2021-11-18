@@ -112,6 +112,8 @@ DEF_START(check)
 DEF_START(async)
 DEF_START(prepare)
 
+// TODO garbage collect loops themselves
+
 static int compare_watchers(value a, value b) {
   return (int)((char *)Ev_watcher_val(a) - (char *)Ev_watcher_val(b));
 }
@@ -140,12 +142,21 @@ static void finalize_periodic_custom(value v_watcher) {
   caml_stat_free(w);
 }
 
+static void finalize_embed_manual(value v_watcher) {
+  ev_embed *w = Ev_val(ev_embed, v_watcher);
+  caml_stat_free(w);
+}
+
 static struct custom_operations watcher_ops = {
     "lev.watcher", finalize_watcher,         compare_watchers,
     hash_watcher,  custom_serialize_default, custom_deserialize_default};
 
 static struct custom_operations periodic_custom_ops = {
     "lev.watcher", finalize_periodic_custom, compare_watchers,
+    hash_watcher,  custom_serialize_default, custom_deserialize_default};
+
+static struct custom_operations embed_manual_ops = {
+    "lev.watcher", finalize_embed_manual,    compare_watchers,
     hash_watcher,  custom_serialize_default, custom_deserialize_default};
 
 CAMLprim value lev_version(value v_unit) {
@@ -461,6 +472,31 @@ CAMLprim value lev_async_pending(value v_async) {
   CAMLparam1(v_async);
   ev_async *async = Ev_val(ev_async, v_async);
   CAMLreturn(Val_bool(ev_async_pending(async)));
+}
+
+CAMLprim value lev_embed_create_automatic(value v_loop) {
+  CAMLparam1(v_loop);
+  CAMLlocal1(v_w);
+  struct ev_loop *loop = (struct ev_loop *)Nativeint_val(v_loop);
+  ev_embed *w = caml_stat_alloc(sizeof(ev_embed));
+  ev_embed_init(w, NULL, loop);
+  v_w = caml_alloc_custom(&embed_manual_ops, sizeof(struct ev_embed *), 0, 1);
+  Ev_val(ev_embed, v_w) = w;
+  CAMLreturn(v_w);
+}
+
+CAMLprim value lev_embed_create_manual(value v_cb, value v_loop) {
+  CAMLparam2(v_cb, v_loop);
+  CAMLlocal2(v_w, v_cb_applied);
+  struct ev_loop *loop = (struct ev_loop *)Nativeint_val(v_loop);
+  ev_embed *w = caml_stat_alloc(sizeof(ev_embed));
+  ev_embed_init(w, Cb_for(ev_embed), loop);
+  v_w = caml_alloc_custom(&watcher_ops, sizeof(struct ev_embed *), 0, 1);
+  Ev_val(ev_embed, v_w) = w;
+  v_cb_applied = caml_callback(v_cb, v_w);
+  w->data = (void *)v_cb_applied;
+  caml_register_generational_global_root((value *)(&(w->data)));
+  CAMLreturn(v_w);
 }
 
 CAMLprim value lev_stat_create(value v_cb, value v_path, value v_interval) {
