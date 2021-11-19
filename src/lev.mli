@@ -8,9 +8,21 @@ libev's quirks to use this library effectively.
 Some things to keep in mind:
 
   - It is your responsibility to make sure that fd's are non blocking
-  - Watchers are mutable and the event loop will mutate them.
+
+  - Watchers are mutable and the event loop will mutate them. It is possible
+  for the user to mutate the watchers as well, but [Lev] considers it unsafe
+and mostly unnecessary. Just crate new watchers and throw out the old ones.
+
   - All actual read, write, accept, etc. calls are outside the scope of this
     library.
+
+  - You must call [$Watcher.stop] to free the resources taken of every watcher.
+  A similar rule applies for [Loop.destroy], but it usually does not matter.
+
+  - You must not reuse the same watcher between different event loops.
+
+  - Watchers are not threadsafe with the exception of [Async]. [Async] is the
+  specifically designed to wake up the event loop from different threads.
 
  *)
 
