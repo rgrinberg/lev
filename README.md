@@ -36,7 +36,8 @@ let () =
       (Pid pid) Terminate
   in
   Child.start child loop;
-  Loop.run_until_done loop
+  Loop.run_until_done loop;
+  Child.destroy child
 ```
 
 ## Documentation
