@@ -133,10 +133,24 @@ end
 
 module type Watcher = sig
   type t
+  (** The basic unit of interactions with an event loop. Created with a
+      callback that the event loop will trigger once the watcher becomes pending. *)
 
   val start : t -> Loop.t -> unit
+  (** [start t loop] starts the watcher and associates it to [loop]. You must
+      not use this watcher in another event loop. *)
+
+  val is_active : t -> bool
+  (** [is_active t] returns [true] if [start t loop] has been called but [stop
+      t] has not. *)
+
+  val is_pending : t -> bool
+  (** [is_pending t] returns [true] if the callback associated with [t] needs
+      to be invoked. *)
 
   val stop : t -> Loop.t -> unit
+  (** [stop t loop] the event loop will no longer trigger this watcher. [t] may
+      be started again with [t] *)
 end
 
 module Periodic : sig

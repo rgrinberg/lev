@@ -172,3 +172,25 @@ let%expect_test "async" =
   [%expect {|
     firing async
     async fired |}]
+
+let%expect_test "is_pending/is_active" =
+  let loop = Loop.create () in
+  let idle = Idle.create (fun _ -> print_endline "idle") in
+  let print_status () =
+    printf "pending = %b; active = %b\n" (Idle.is_pending idle)
+      (Idle.is_active idle)
+  in
+  print_status ();
+  Idle.start idle loop;
+  print_status ();
+  ignore (Loop.run loop Once);
+  print_status ();
+  Idle.stop idle loop;
+  print_status ();
+  [%expect
+    {|
+    pending = false; active = false
+    pending = false; active = true
+    idle
+    pending = false; active = true
+    pending = false; active = false |}]

@@ -517,6 +517,22 @@ CAMLprim value lev_embed_create_manual(value v_cb, value v_loop) {
   CAMLreturn(v_w);
 }
 
+CAMLprim value lev_watcher_is_active(value v_w) {
+  CAMLparam1(v_w);
+  CAMLlocal1(v_active);
+  ev_watcher *w = Ev_val(ev_watcher, v_w);
+  v_active = Val_bool(ev_is_active(w));
+  CAMLreturn(v_active);
+}
+
+CAMLprim value lev_watcher_is_pending(value v_w) {
+  CAMLparam1(v_w);
+  CAMLlocal1(v_pending);
+  ev_watcher *w = Ev_val(ev_watcher, v_w);
+  v_pending = Val_bool(ev_is_pending(w));
+  CAMLreturn(v_pending);
+}
+
 CAMLprim value lev_stat_create(value v_cb, value v_path, value v_interval) {
   CAMLparam3(v_cb, v_path, v_interval);
   CAMLlocal2(v_w, v_cb_applied);

@@ -244,7 +244,20 @@ module type Watcher = sig
 
   val start : t -> Loop.t -> unit
 
+  val is_active : t -> bool
+
+  val is_pending : t -> bool
+
   val stop : t -> Loop.t -> unit
+end
+
+module Watcher (S : sig
+  type t
+end) =
+struct
+  external is_active : S.t -> bool = "lev_watcher_is_active"
+
+  external is_pending : S.t -> bool = "lev_watcher_is_pending"
 end
 
 module Io = struct
@@ -277,6 +290,10 @@ module Io = struct
 
   type t
 
+  include Watcher (struct
+    type nonrec t = t
+  end)
+
   external fd : t -> Unix.file_descr = "lev_io_fd"
 
   external create :
@@ -292,6 +309,10 @@ let wrap_callback f t () = f t
 
 module Periodic = struct
   type t
+
+  include Watcher (struct
+    type nonrec t = t
+  end)
 
   type kind =
     | Regular of { offset : Timestamp.t; interval : Timestamp.t option }
@@ -320,6 +341,10 @@ end
 module Timer = struct
   type t
 
+  include Watcher (struct
+    type nonrec t = t
+  end)
+
   external create : (t -> unit -> unit) -> float -> float -> t
     = "lev_timer_create"
 
@@ -337,6 +362,10 @@ end
 module Signal = struct
   type t
 
+  include Watcher (struct
+    type nonrec t = t
+  end)
+
   external stop : t -> Loop.t -> unit = "lev_signal_stop"
 
   external start : t -> Loop.t -> unit = "lev_signal_start"
@@ -348,6 +377,10 @@ end
 
 module Child = struct
   type t
+
+  include Watcher (struct
+    type nonrec t = t
+  end)
 
   external stop : t -> Loop.t -> unit = "lev_child_stop"
 
@@ -372,6 +405,10 @@ end
 module Cleanup = struct
   type t
 
+  include Watcher (struct
+    type nonrec t = t
+  end)
+
   external stop : t -> Loop.t -> unit = "lev_cleanup_stop"
 
   external start : t -> Loop.t -> unit = "lev_cleanup_start"
@@ -383,6 +420,10 @@ end
 
 module Stat = struct
   type t
+
+  include Watcher (struct
+    type nonrec t = t
+  end)
 
   external stop : t -> Loop.t -> unit = "lev_stat_stop"
 
@@ -398,6 +439,10 @@ end
 
 module Embed = struct
   type t
+
+  include Watcher (struct
+    type nonrec t = t
+  end)
 
   external stop : t -> Loop.t -> unit = "lev_embed_stop"
 
@@ -421,6 +466,10 @@ end
 module Idle = struct
   type t
 
+  include Watcher (struct
+    type nonrec t = t
+  end)
+
   external stop : t -> Loop.t -> unit = "lev_idle_stop"
 
   external start : t -> Loop.t -> unit = "lev_idle_start"
@@ -433,6 +482,10 @@ end
 module Check = struct
   type t
 
+  include Watcher (struct
+    type nonrec t = t
+  end)
+
   external stop : t -> Loop.t -> unit = "lev_check_stop"
 
   external start : t -> Loop.t -> unit = "lev_check_start"
@@ -444,6 +497,10 @@ end
 
 module Async = struct
   type t
+
+  include Watcher (struct
+    type nonrec t = t
+  end)
 
   external stop : t -> Loop.t -> unit = "lev_async_stop"
 
@@ -460,6 +517,10 @@ end
 
 module Prepare = struct
   type t
+
+  include Watcher (struct
+    type nonrec t = t
+  end)
 
   external stop : t -> Loop.t -> unit = "lev_prepare_stop"
 
