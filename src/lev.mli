@@ -28,8 +28,6 @@ and mostly unnecessary. Just crate new watchers and throw out the old ones.
 
 val ev_version : unit -> int * int
 
-val feed_signal : int -> unit
-
 module Backend : sig
   type t =
     | Select
