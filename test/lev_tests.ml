@@ -194,3 +194,20 @@ let%expect_test "is_pending/is_active" =
     idle
     pending = false; active = true
     pending = false; active = false |}]
+
+let%expect_test "destory" =
+  let loop = Loop.create () in
+  let idle =
+    Idle.create (fun idle ->
+        print_endline "idle";
+        Idle.stop idle loop)
+  in
+  Idle.start idle loop;
+  ignore (Loop.run loop Once);
+  assert (not (Idle.is_active idle));
+  assert (not (Idle.is_pending idle));
+  print_endline "destroying watcher";
+  Idle.destroy idle;
+  [%expect {|
+    idle
+    destroying watcher |}]

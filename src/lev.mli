@@ -16,8 +16,9 @@ and mostly unnecessary. Just crate new watchers and throw out the old ones.
   - All actual read, write, accept, etc. calls are outside the scope of this
     library.
 
-  - You must call [$Watcher.stop] to free the resources taken of every watcher.
-  A similar rule applies for [Loop.destroy], but it usually does not matter.
+  - You must call [$Watcher.destroy] to free the resources taken of every
+  watcher. A similar rule applies for [Loop.destroy], but it usually does not
+  matter.
 
   - You must not reuse the same watcher between different event loops.
 
@@ -151,6 +152,11 @@ module type Watcher = sig
   val stop : t -> Loop.t -> unit
   (** [stop t loop] the event loop will no longer trigger this watcher. [t] may
       be started again with [t] *)
+
+  val destroy : t -> unit
+  (** [destroy t] frees the memory allocated for [t]. After this call, you may
+      not use [t] in any way. You may only call [destroy t] if [is_active t]
+    and [is_pending t] are both [false]*)
 end
 
 module Periodic : sig

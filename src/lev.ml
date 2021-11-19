@@ -249,15 +249,21 @@ module type Watcher = sig
   val is_pending : t -> bool
 
   val stop : t -> Loop.t -> unit
+
+  val destroy : t -> unit
 end
 
 module Watcher (S : sig
   type t
 end) =
 struct
-  external is_active : S.t -> bool = "lev_watcher_is_active"
+  open S
 
-  external is_pending : S.t -> bool = "lev_watcher_is_pending"
+  external is_active : t -> bool = "lev_watcher_is_active"
+
+  external is_pending : t -> bool = "lev_watcher_is_pending"
+
+  external destroy : t -> unit = "lev_watcher_destroy"
 end
 
 module Io = struct
@@ -313,6 +319,8 @@ module Periodic = struct
   include Watcher (struct
     type nonrec t = t
   end)
+
+  external destroy : t -> unit = "lev_periodic_destroy"
 
   type kind =
     | Regular of { offset : Timestamp.t; interval : Timestamp.t option }
@@ -443,6 +451,8 @@ module Embed = struct
   include Watcher (struct
     type nonrec t = t
   end)
+
+  external destroy : t -> unit = "lev_embed_destroy"
 
   external stop : t -> Loop.t -> unit = "lev_embed_stop"
 

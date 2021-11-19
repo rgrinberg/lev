@@ -150,30 +150,16 @@ struct periodic_cbs {
   value reschedule;
 };
 
-static void finalize_periodic_custom(value v_watcher) {
-  ev_periodic *w = Ev_periodic_val(v_watcher);
-  struct periodic_cbs *cbs = (struct periodic_cbs *)w->data;
-  caml_remove_generational_global_root(&(cbs->watcher));
-  caml_remove_generational_global_root(&(cbs->reschedule));
-  caml_stat_free(cbs);
-  caml_stat_free(w);
-}
-
-static void finalize_embed_manual(value v_watcher) {
-  ev_embed *w = Ev_val(ev_embed, v_watcher);
-  caml_stat_free(w);
-}
-
 static struct custom_operations watcher_ops = {
-    "lev.watcher", finalize_watcher,         compare_watchers,
+    "lev.watcher", custom_finalize_default,  compare_watchers,
     hash_watcher,  custom_serialize_default, custom_deserialize_default};
 
 static struct custom_operations periodic_custom_ops = {
-    "lev.watcher", finalize_periodic_custom, compare_watchers,
+    "lev.watcher", custom_finalize_default,  compare_watchers,
     hash_watcher,  custom_serialize_default, custom_deserialize_default};
 
 static struct custom_operations embed_manual_ops = {
-    "lev.watcher", finalize_embed_manual,    compare_watchers,
+    "lev.watcher", custom_finalize_default,  compare_watchers,
     hash_watcher,  custom_serialize_default, custom_deserialize_default};
 
 CAMLprim value lev_version(value v_unit) {
@@ -422,6 +408,21 @@ CAMLprim value lev_periodic_create_custom(value v_cb, value v_reschedule) {
   CAMLreturn(v_periodic);
 }
 
+CAMLprim value lev_periodic_destroy(value v_w) {
+  CAMLparam1(v_w);
+  ev_periodic *w = Ev_periodic_val(v_w);
+  if (w->reschedule_cb == NULL) {
+    caml_remove_generational_global_root((value *)(&(w->data)));
+  } else {
+    struct periodic_cbs *cbs = (struct periodic_cbs *)w->data;
+    caml_remove_generational_global_root(&(cbs->watcher));
+    caml_remove_generational_global_root(&(cbs->reschedule));
+    caml_stat_free(cbs);
+  }
+  caml_stat_free(w);
+  CAMLreturn(Val_unit);
+}
+
 #define DEF_SIMPLE_CREATE(__name)                                              \
   CAMLprim value lev_##__name##_create(value v_cb) {                           \
     CAMLparam1(v_cb);                                                          \
@@ -531,6 +532,32 @@ CAMLprim value lev_watcher_is_pending(value v_w) {
   ev_watcher *w = Ev_val(ev_watcher, v_w);
   v_pending = Val_bool(ev_is_pending(w));
   CAMLreturn(v_pending);
+}
+
+CAMLprim value lev_watcher_destroy(value v_w) {
+  CAMLparam1(v_w);
+  ev_watcher *w = Ev_val(ev_watcher, v_w);
+  caml_remove_generational_global_root((value *)(&(w->data)));
+  caml_stat_free(w);
+  CAMLreturn(Val_unit);
+}
+
+CAMLprim value lev_embed_destroy(value v_embed) {
+  CAMLparam1(v_embed);
+  ev_embed *w = Ev_val(ev_embed, v_embed);
+  caml_stat_free(w);
+  CAMLreturn(Val_unit);
+}
+
+CAMLprim value lev_periodic_custom_destroy(value v_periodic) {
+  CAMLparam1(v_periodic);
+  ev_periodic *w = Ev_periodic_val(v_periodic);
+  struct periodic_cbs *cbs = (struct periodic_cbs *)w->data;
+  caml_remove_generational_global_root(&(cbs->watcher));
+  caml_remove_generational_global_root(&(cbs->reschedule));
+  caml_stat_free(cbs);
+  caml_stat_free(w);
+  CAMLreturn(Val_unit);
 }
 
 CAMLprim value lev_stat_create(value v_cb, value v_path, value v_interval) {
