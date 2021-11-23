@@ -13,7 +13,7 @@ callback based so you need to BYOC (bring your own concurrency).
 ## Example
 
 ```ocaml
-#include "examples/readme.ml"
+#include "lev/examples/readme.ml"
 ```
 
 ## Documentation
