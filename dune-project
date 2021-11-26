@@ -18,3 +18,12 @@
  (depends
   (ppx_expect :with-test)
   base-unix))
+
+(package
+ (synopsis "Fiber + Lev")
+ (description "High level API based on dune's fibers")
+ (name lev-fiber)
+ (depends
+  (ppx_expect :with-test)
+  fiber
+  base-unix))
