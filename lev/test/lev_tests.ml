@@ -195,7 +195,7 @@ let%expect_test "is_pending/is_active" =
     pending = false; active = true
     pending = false; active = false |}]
 
-let%expect_test "destory" =
+let%expect_test "destroy" =
   let loop = Loop.create () in
   let idle =
     Idle.create (fun idle ->
