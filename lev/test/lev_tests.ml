@@ -83,6 +83,27 @@ let%expect_test "timer" =
   [%expect {|
     fired timer |}]
 
+let%expect_test "periodic timer" =
+  let loop = Loop.create () in
+  let timer =
+    let count = ref 3 in
+    Timer.create ~after:0. ~repeat:0.02 (fun timer ->
+        if !count = 0 then
+          let () = print_endline "stopping timer" in
+          Timer.stop timer loop
+        else (
+          decr count;
+          print_endline "fired timer"))
+  in
+  Timer.start timer loop;
+  ignore (Lev.Loop.run_until_done loop);
+  [%expect
+    {|
+    fired timer
+    fired timer
+    fired timer
+    stopping timer |}]
+
 let%expect_test "cleanup callbacks" =
   let loop = Loop.create () in
   let cleanup = Cleanup.create (fun _ -> print_endline "cleanup") in
@@ -211,3 +232,56 @@ let%expect_test "destroy" =
   [%expect {|
     idle
     destroying watcher |}]
+
+let%expect_test "timer - stops automatically" =
+  let loop = Loop.create () in
+  let another = ref true in
+  let timer =
+    Timer.create ~after:0.01 (fun t ->
+        print_endline "timer fired";
+        if !another then (
+          another := false;
+          Timer.start t loop))
+  in
+  Timer.start timer loop;
+  Loop.run_until_done loop;
+  [%expect {|
+    timer fired
+    timer fired |}]
+
+let%expect_test "timer/again cancels start" =
+  let loop = Loop.create () in
+  let timer =
+    Timer.create ~after:0.05 (fun t ->
+        print_endline "timer fired";
+        Timer.stop t loop)
+  in
+  Timer.start timer loop;
+  Timer.again timer loop;
+  Loop.run_until_done loop;
+  [%expect {| |}]
+
+let%expect_test "timer/consecutive again" =
+  let loop = Loop.create () in
+  let now = Unix.time () in
+  let timer =
+    Timer.create ~after:1.0 (fun t ->
+        printf "timer fired after %f\n" (Unix.time () -. now);
+        Timer.stop t loop)
+  in
+  let control =
+    let count = ref 3 in
+    Timer.create ~after:0.0 ~repeat:0.2 (fun t ->
+        if !count = 0 then Timer.stop t loop
+        else (
+          decr count;
+          print_endline "resetting timer";
+          Timer.again timer loop))
+  in
+  Timer.start timer loop;
+  Timer.start control loop;
+  Loop.run_until_done loop;
+  [%expect {|
+    resetting timer
+    resetting timer
+    resetting timer |}]

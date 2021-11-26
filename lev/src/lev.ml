@@ -356,7 +356,7 @@ module Timer = struct
   external create : (t -> unit -> unit) -> float -> float -> t
     = "lev_timer_create"
 
-  let create ?(repeat = 0.) ~after f = create (wrap_callback f) repeat after
+  let create ?(repeat = 0.) ~after f = create (wrap_callback f) after repeat
 
   external remaining : t -> Loop.t -> Timestamp.t = "lev_timer_remaining"
 
