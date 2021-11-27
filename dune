@@ -6,3 +6,7 @@
  (target README.md)
  (action
   (run cppo -n %{dep} -o %{target})))
+
+(env
+ (_
+  (flags :standard -alert -unstable)))
