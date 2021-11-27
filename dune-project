@@ -26,4 +26,5 @@
  (depends
   (ppx_expect :with-test)
   fiber
+  stdune
   base-unix))
