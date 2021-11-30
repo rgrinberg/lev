@@ -31,7 +31,7 @@ let peek_str b ~len =
 
 let write_str b src =
   let len = String.length src in
-  match B.reserve b len with
+  match B.reserve b ~len with
   | None -> assert false
   | Some dst_pos ->
       let dst = B.buffer b in
@@ -54,7 +54,7 @@ let%expect_test "bip buffers" =
   let () =
     let read_len = 8 in
     let (_ : string) = peek_str b ~len:read_len in
-    B.junk b read_len
+    B.junk b ~len:read_len
   in
   [%expect
     {|
