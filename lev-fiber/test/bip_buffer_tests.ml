@@ -1,32 +1,28 @@
 open Stdune
 module Bytes = BytesLabels
-
-module B = Util.Bip_buffer.Make (struct
-  type elt = char
-
-  include Bytes
-end)
+module B = Util.Bip_buffer
 
 let%expect_test "create" =
   let len = 128 in
-  let b = B.create (Bytes.create len) in
+  let b = B.create (Bytes.create len) ~len in
   let unused = B.unused b in
   printfn "%d = %d" unused len;
   assert (unused = len);
   [%expect {| 128 = 128 |}]
 
 let%expect_test "is_empty" =
-  assert (B.is_empty (B.create (Bytes.create 100)));
+  let len = 100 in
+  assert (B.is_empty (B.create (Bytes.create len) ~len));
   [%expect {||}]
 
 let%expect_test "read empty" =
-  let b = B.create (Bytes.create 0) in
+  let b = B.create (Bytes.create 0) ~len:1 in
   assert (B.peek b = None);
   [%expect {||}]
 
 let%expect_test "bip buffers" =
   let buf_size = 100 in
-  let b = B.create (Bytes.create buf_size) in
+  let b = B.create (Bytes.create buf_size) ~len:buf_size in
   assert (B.is_empty b);
   printfn "Unused space: %d" (B.unused b);
   [%expect {| Unused space: 100 |}];
