@@ -323,12 +323,12 @@ let run lev_loop ~f =
   let rec loop = function Scheduler.Done a -> a | Stalled a -> stalled a
   and stalled a =
     let res = Lev.Loop.run lev_loop Once in
-    let events = events a t.queue [] in
+    let events = events t.queue [] in
     match Nonempty_list.of_list events with
     | None -> continue a res
     | Some fills -> loop (Scheduler.advance a fills)
-  and events stall q acc =
-    match Queue.pop q with None -> acc | Some e -> events stall q (e :: acc)
+  and events q acc =
+    match Queue.pop q with None -> acc | Some e -> events q (e :: acc)
   and continue next res =
     match res with
     | `No_more_active_watchers -> Code_error.raise "deadlock" []
