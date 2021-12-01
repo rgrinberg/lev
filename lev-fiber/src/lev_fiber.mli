@@ -80,7 +80,7 @@ module Io : sig
     input:Buffer.t ->
     output:Buffer.t ->
     [ `Blocking | `Non_blocking ] ->
-    (input t * output) Fiber.t
+    (input t * output t) Fiber.t
 
   val fd : 'a t -> Unix.file_descr
 
