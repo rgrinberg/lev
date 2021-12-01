@@ -316,6 +316,7 @@ let run lev_loop ~f =
         Queue.transfer thread_jobs queue;
         Mutex.unlock thread_mutex)
   in
+  Lev.Async.start async lev_loop;
   let t = { loop = lev_loop; queue; async; thread_mutex; thread_jobs } in
   let f = f t in
   let module Scheduler = Fiber.Scheduler in
