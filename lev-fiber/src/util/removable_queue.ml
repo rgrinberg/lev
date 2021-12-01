@@ -15,10 +15,7 @@ type 'a t = {
 
 type 'a node = 'a t
 
-let data node =
-  match node.data with
-  | None -> assert false
-  | Some s -> s
+let data node = match node.data with None -> assert false | Some s -> s
 
 let create () : 'a t =
   let rec sentinel =
