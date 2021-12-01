@@ -6,6 +6,7 @@ module Timestamp = Lev.Timestamp
 type t = {
   loop : Lev.Loop.t;
   queue : Fiber.fill Queue.t;
+  (* TODO stop when there are no threads *)
   async : Lev.Async.t;
   thread_jobs : Fiber.fill Queue.t;
   thread_mutex : Mutex.t;
@@ -306,7 +307,6 @@ module Socket = struct
 end
 
 let run lev_loop ~f =
-  let f v = Fiber.Var.set t v f in
   let thread_jobs = Queue.create () in
   let thread_mutex = Mutex.create () in
   let queue = Queue.create () in
@@ -317,13 +317,16 @@ let run lev_loop ~f =
         Mutex.unlock thread_mutex)
   in
   Lev.Async.start async lev_loop;
-  let t = { loop = lev_loop; queue; async; thread_mutex; thread_jobs } in
-  let f = f t in
+  let f =
+    Fiber.Var.set t
+      { loop = lev_loop; queue; async; thread_mutex; thread_jobs }
+      f
+  in
   let module Scheduler = Fiber.Scheduler in
   let rec loop = function Scheduler.Done a -> a | Stalled a -> stalled a
   and stalled a =
     let res = Lev.Loop.run lev_loop Once in
-    let events = events t.queue [] in
+    let events = events queue [] in
     match Nonempty_list.of_list events with
     | None -> continue a res
     | Some fills -> loop (Scheduler.advance a fills)
