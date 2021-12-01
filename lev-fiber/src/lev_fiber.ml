@@ -258,11 +258,16 @@ module Io = struct
 
   type 'a state =
     | Closed
-    | Open of { buffer : Buffer.t; fd : Unix.file_descr; kind : kind }
+    | Open of {
+        closer : unit Lazy.t;
+        buffer : Buffer.t;
+        fd : Unix.file_descr;
+        kind : kind;
+      }
 
   type 'a t = 'a state ref
 
-  let create (type a) buffer fd kind (mode : a mode) : a t Fiber.t =
+  let create_gen (type a) fd buffer kind (mode : a mode) ~closer : a t Fiber.t =
     let+ kind =
       match kind with
       | `Blocking ->
@@ -278,7 +283,16 @@ module Io = struct
           let io = Lev.Io.create (fun _ _ _ -> assert false) fd events in
           Fiber.return (Non_blocking io)
     in
-    ref (Open { buffer; fd; kind })
+    ref (Open { buffer; fd; kind; closer })
+
+  let create fd buffer kind mode =
+    create_gen ~closer:(lazy (Unix.close fd)) fd buffer kind mode
+
+  let create_rw fd ~input ~output kind =
+    let closer = lazy (Unix.close fd) in
+    let* r = create_gen ~closer fd input kind Input in
+    let+ w = create_gen ~closer fd output kind Output in
+    (r, w)
 
   let flush _ = assert false
 

@@ -69,11 +69,18 @@ module Io : sig
   type 'a t
 
   val create :
-    Buffer.t ->
     Unix.file_descr ->
+    Buffer.t ->
     [ `Blocking | `Non_blocking ] ->
     'a mode ->
     'a t Fiber.t
+
+  val create_rw :
+    Unix.file_descr ->
+    input:Buffer.t ->
+    output:Buffer.t ->
+    [ `Blocking | `Non_blocking ] ->
+    (input t * output) Fiber.t
 
   val fd : 'a t -> Unix.file_descr
 
