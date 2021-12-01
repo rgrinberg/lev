@@ -48,7 +48,7 @@ module Thread : sig
 
   type 'a task
 
-  val task : t -> f:(unit -> 'a) -> 'a task
+  val task : t -> f:(unit -> 'a) -> 'a task Fiber.t
 
   val cancel : 'a task -> unit Fiber.t
 

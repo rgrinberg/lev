@@ -61,13 +61,14 @@ module Thread = struct
   }
 
   let task t ~f =
-    let ivar = Fiber.Ivar.create () in
-    let task =
-      match Worker.add_work t.worker (Job (f, ivar)) with
-      | Ok task -> task
-      | Error `Stopped -> Code_error.raise "already stopped" []
-    in
-    { ivar; task }
+    Fiber.of_thunk (fun () ->
+        let ivar = Fiber.Ivar.create () in
+        let task =
+          match Worker.add_work t.worker (Job (f, ivar)) with
+          | Ok task -> task
+          | Error `Stopped -> Code_error.raise "already stopped" []
+        in
+        Fiber.return { ivar; task })
 
   let await task = Fiber.Ivar.read task.ivar
 
