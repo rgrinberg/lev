@@ -1,6 +1,7 @@
 (library
  (name lev_fiber_tests)
  (libraries
+  fiber
   lev
   lev_fiber
   util
