@@ -125,15 +125,7 @@ module Socket : sig
     val listening_address : t -> Unix.sockaddr
   end
 
-  module Client : sig
-    type t
-
-    val create : Unix.sockaddr -> t Fiber.t
-
-    val connect : t -> Unix.file_descr Fiber.t
-
-    val stop : t -> unit
-  end
+  val connect : Unix.file_descr -> Unix.sockaddr -> unit Fiber.t
 end
 
 val run : Lev.Loop.t -> f:(unit -> 'a Fiber.t) -> 'a

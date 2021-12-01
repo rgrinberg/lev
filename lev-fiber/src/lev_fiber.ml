@@ -331,15 +331,21 @@ module Io = struct
 end
 
 module Socket = struct
-  module Client = struct
-    type t
-
-    let create _ = assert false
-
-    let connect _ = assert false
-
-    let stop _ = assert false
-  end
+  let connect fd sock =
+    let ivar = Fiber.Ivar.create () in
+    let* t = Fiber.Var.get_exn t in
+    let io =
+      Lev.Io.create
+        (fun io fd _ ->
+          Queue.push t.queue (Fiber.Fill (ivar, fd));
+          Lev.Io.stop io t.loop;
+          Lev.Io.destroy io)
+        fd
+        (Lev.Io.Event.Set.create ~read:true ())
+    in
+    Lev.Io.start io t.loop;
+    let+ fd = Fiber.Ivar.read ivar in
+    Unix.connect fd sock
 
   module Server = struct
     type t
