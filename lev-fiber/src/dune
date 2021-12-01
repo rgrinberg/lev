@@ -1,0 +1,8 @@
+(env
+ (_
+  (flags :standard -alert -unstable)))
+
+(library
+ (name lev_fiber)
+ (public_name lev-fiber)
+ (libraries unix stdune threads.posix fiber lev util))
