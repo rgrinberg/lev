@@ -6,7 +6,9 @@
 
 (license ISC)
 (maintainers "Rudi Grinberg <me@rgrinberg.com>")
-(authors "Rudi Grinberg <me@rgrinberg.com>")
+(authors
+  "Rudi Grinberg <me@rgrinberg.com>"
+  "Ulugbek Abdullaev <ulugbekna@gmail.com>")
 (source (github rgrinberg/lev))
 
 (implicit_transitive_deps false)
@@ -25,6 +27,7 @@
  (name lev-fiber)
  (depends
   (ppx_expect :with-test)
+  lev
   fiber
   stdune
   base-unix))

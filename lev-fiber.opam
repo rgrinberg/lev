@@ -3,13 +3,17 @@ opam-version: "2.0"
 synopsis: "Fiber + Lev"
 description: "High level API based on dune's fibers"
 maintainer: ["Rudi Grinberg <me@rgrinberg.com>"]
-authors: ["Rudi Grinberg <me@rgrinberg.com>"]
+authors: [
+  "Rudi Grinberg <me@rgrinberg.com>"
+  "Ulugbek Abdullaev <ulugbekna@gmail.com>"
+]
 license: "ISC"
 homepage: "https://github.com/rgrinberg/lev"
 bug-reports: "https://github.com/rgrinberg/lev/issues"
 depends: [
   "dune" {>= "2.9"}
   "ppx_expect" {with-test}
+  "lev"
   "fiber"
   "stdune"
   "base-unix"
