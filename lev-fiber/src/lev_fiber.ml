@@ -262,14 +262,19 @@ module Io = struct
 
   type 'a t = 'a state ref
 
-  let create (type a) buffer fd kind (_ : a mode) : a t Fiber.t =
+  let create (type a) buffer fd kind (mode : a mode) : a t Fiber.t =
     let+ kind =
       match kind with
       | `Blocking ->
           let+ thread = Thread.create () in
           Blocking thread
       | `Non_blocking ->
-          let events = assert false in
+          let events =
+            let read, write =
+              match mode with Input -> (true, false) | Output -> (false, true)
+            in
+            Lev.Io.Event.Set.create ~read ~write ()
+          in
           let io = Lev.Io.create (fun _ _ _ -> assert false) fd events in
           Fiber.return (Non_blocking io)
     in
