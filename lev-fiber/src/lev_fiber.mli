@@ -60,14 +60,24 @@ module Thread : sig
 end
 
 module Io : sig
-  type t
+  type input
 
-  val of_fd :
-    Buffer.t -> Unix.file_descr -> [ `Blocking | `Non_blocking ] -> t Fiber.t
+  type output
 
-  val fd : t -> Unix.file_descr
+  type 'a mode = Input : input mode | Output : output mode
 
-  val flush : t -> unit Fiber.t
+  type 'a t
+
+  val create :
+    Buffer.t ->
+    Unix.file_descr ->
+    [ `Blocking | `Non_blocking ] ->
+    'a mode ->
+    'a t Fiber.t
+
+  val fd : 'a t -> Unix.file_descr
+
+  val flush : output t -> unit Fiber.t
 
   module Slice : sig
     type t
@@ -85,13 +95,13 @@ module Io : sig
 
   val read : ?max:int -> reader -> Slice.t option Fiber.t
 
-  val with_read : t -> f:(reader -> 'a Fiber.t) -> 'a Fiber.t
+  val with_read : input t -> f:(reader -> 'a Fiber.t) -> 'a Fiber.t
 
-  val closed : t -> unit Fiber.t
+  val closed : 'a t -> unit Fiber.t
 
-  val close : t -> unit
+  val close : 'a t -> unit
 
-  val pipe : unit -> t * t
+  val pipe : unit -> input t * output t
 end
 
 module Socket : sig

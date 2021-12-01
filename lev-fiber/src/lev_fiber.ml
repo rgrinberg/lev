@@ -247,9 +247,32 @@ let wait ~pid =
   Fiber.Ivar.read ivar
 
 module Io = struct
-  type t
+  type input
 
-  let of_fd _ = assert false
+  type output
+
+  type 'a mode = Input : input mode | Output : output mode
+
+  type kind = Blocking of Thread.t | Non_blocking of Lev.Io.t
+
+  type 'a state =
+    | Closed
+    | Open of { buffer : Buffer.t; fd : Unix.file_descr; kind : kind }
+
+  type 'a t = 'a state ref
+
+  let create (type a) buffer fd kind (_ : a mode) : a t Fiber.t =
+    let+ kind =
+      match kind with
+      | `Blocking ->
+          let+ thread = Thread.create () in
+          Blocking thread
+      | `Non_blocking ->
+          let events = assert false in
+          let io = Lev.Io.create (fun _ _ _ -> assert false) fd events in
+          Fiber.return (Non_blocking io)
+    in
+    ref (Open { buffer; fd; kind })
 
   let flush _ = assert false
 
@@ -275,7 +298,12 @@ module Io = struct
 
   let closed _ = assert false
 
-  let close _ = assert false
+  let close t =
+    match !t with
+    | Closed -> ()
+    | Open o ->
+        Unix.close o.fd;
+        t := Closed
 
   let fd _ = assert false
 
