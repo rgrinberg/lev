@@ -7,7 +7,7 @@ let%expect_test "create thread" =
     let* thread = Thread.create () in
     let* task = Thread.task thread ~f:(fun () -> print_endline "in thread") in
     let+ result = Thread.await task in
-    match result with Error _ -> assert false | Ok () -> ()
+    match result with Error _ -> assert false | Ok () -> Thread.close thread
   in
   run (Lev.Loop.create ()) ~f;
-  [%expect{| in thread |}]
+  [%expect {| in thread |}]
