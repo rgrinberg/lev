@@ -376,20 +376,20 @@ let run lev_loop ~f =
       { loop = lev_loop; queue; async; thread_mutex; thread_jobs }
       f
   in
-  let module Scheduler = Fiber.Scheduler in
-  let rec loop = function Scheduler.Done a -> a | Stalled a -> stalled a
-  and stalled a =
-    let res = Lev.Loop.run lev_loop Once in
-    let events = events queue [] in
-    match Nonempty_list.of_list events with
-    | None -> continue a res
-    | Some fills -> loop (Scheduler.advance a fills)
-  and events q acc =
+  let rec events q acc =
     match Queue.pop q with None -> acc | Some e -> events q (e :: acc)
-  and continue next res =
-    match res with
-    | `No_more_active_watchers -> Code_error.raise "deadlock" []
-    | `Otherwise -> stalled next
   in
-  let step = Scheduler.start f in
-  loop step
+  let rec iter_or_deadlock q =
+    match Nonempty_list.of_list (events q []) with
+    | Some e -> e
+    | None -> Code_error.raise "deadlock" []
+  and iter loop q =
+    match Nonempty_list.of_list (events q []) with
+    | Some e -> e
+    | None -> (
+        let res = Lev.Loop.run loop Once in
+        match res with
+        | `No_more_active_watchers -> iter_or_deadlock q
+        | `Otherwise -> iter loop q)
+  in
+  Fiber.run f ~iter:(fun () -> iter lev_loop queue)
