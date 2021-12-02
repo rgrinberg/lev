@@ -16,6 +16,8 @@ type scheduler = t
 
 let t : t Fiber.Var.t = Fiber.Var.create ()
 
+let scheduler = t
+
 module Buffer = struct
   include Bip_buffer
 
@@ -332,6 +334,7 @@ end
 
 module Socket = struct
   let connect fd sock =
+    Unix.set_nonblock fd;
     let ivar = Fiber.Ivar.create () in
     let* t = Fiber.Var.get_exn t in
     let io =
@@ -348,15 +351,61 @@ module Socket = struct
     Unix.connect fd sock
 
   module Server = struct
-    type t
+    type t = {
+      fd : Unix.file_descr;
+      pool : Fiber.Pool.t;
+      io : Lev.Io.t;
+      mutable close : bool;
+      mutable await : unit Fiber.Ivar.t;
+    }
 
-    let create _ = assert false
+    let create fd sockaddr ~backlog =
+      let+ scheduler = Fiber.Var.get_exn scheduler in
+      let pool = Fiber.Pool.create () in
+      Unix.set_nonblock fd;
+      Unix.bind fd sockaddr;
+      Unix.listen fd backlog;
+      let t = Fdecl.create Dyn.opaque in
+      let io =
+        Lev.Io.create
+          (fun _ _ _ ->
+            (* TODO shouuld we just accept immediately here? *)
+            let t = Fdecl.get t in
+            Queue.push scheduler.queue (Fiber.Fill (t.await, ())))
+          fd
+          (Lev.Io.Event.Set.create ~read:true ())
+      in
+      Fdecl.set t { pool; await = Fiber.Ivar.create (); close = false; fd; io };
+      Fdecl.get t
 
-    let stop _ = assert false
+    let close t =
+      if t.close then Fiber.return ()
+      else
+        let* scheduler = Fiber.Var.get_exn scheduler in
+        Unix.close t.fd;
+        Lev.Io.stop t.io scheduler.loop;
+        Lev.Io.destroy t.io;
+        t.close <- true;
+        let* () = Fiber.Pool.stop t.pool in
+        Fiber.Ivar.fill t.await ()
 
-    let serve _ = assert false
-
-    let listening_address _ = assert false
+    let serve (t : t) ~f =
+      let* scheduler = Fiber.Var.get_exn scheduler in
+      Lev.Io.start t.io scheduler.loop;
+      Fiber.fork_and_join_unit
+        (fun () -> Fiber.Pool.run t.pool)
+        (fun () ->
+          let rec loop () =
+            let* () = Fiber.Ivar.read t.await in
+            match t.close with
+            | true -> Fiber.return ()
+            | false ->
+                t.await <- Fiber.Ivar.create ();
+                let fd, sockaddr = Unix.accept ~cloexec:true t.fd in
+                let* () = Fiber.Pool.task t.pool ~f:(fun () -> f fd sockaddr) in
+                loop ()
+          in
+          loop ())
   end
 end
 

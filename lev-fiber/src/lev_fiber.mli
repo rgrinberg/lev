@@ -115,14 +115,12 @@ module Socket : sig
   module Server : sig
     type t
 
-    val create : Unix.sockaddr -> backlog:int -> t Fiber.t
+    val create : Unix.file_descr -> Unix.sockaddr -> backlog:int -> t Fiber.t
 
-    val stop : t -> unit
+    val close : t -> unit Fiber.t
 
     val serve :
-      t -> f:(Unix.sockaddr -> Unix.file_descr -> unit Fiber.t) -> unit Fiber.t
-
-    val listening_address : t -> Unix.sockaddr
+      t -> f:(Unix.file_descr -> Unix.sockaddr -> unit Fiber.t) -> unit Fiber.t
   end
 
   val connect : Unix.file_descr -> Unix.sockaddr -> unit Fiber.t
