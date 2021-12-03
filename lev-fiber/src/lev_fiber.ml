@@ -235,7 +235,7 @@ module Timer = struct
   end
 end
 
-let wait ~pid =
+let waitpid ~pid =
   let* { loop; queue; _ } = Fiber.Var.get_exn t in
   let ivar = Fiber.Ivar.create () in
   let child =

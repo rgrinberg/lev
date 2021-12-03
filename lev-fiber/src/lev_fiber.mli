@@ -39,7 +39,7 @@ module Timer : sig
   end
 end
 
-val wait : pid:int -> Unix.process_status Fiber.t
+val waitpid : pid:int -> Unix.process_status Fiber.t
 
 module Thread : sig
   type t
