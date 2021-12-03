@@ -35,7 +35,8 @@ module Timer : sig
     (** run the wheel forever *)
 
     val stop : t -> unit Fiber.t
-    (** [stop t] stop running the wheel and cancel everything. it's an error to call [task t] after this *)
+    (** [stop t] stop running the wheel and cancel everything.
+        it's an error to call [task t] after this. *)
   end
 end
 

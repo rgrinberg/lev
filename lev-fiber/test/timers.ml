@@ -72,7 +72,7 @@ let%expect_test "timer wheel cancellation" =
         (fun () ->
           print_endline "wheel: run";
           Wheel.run wheel));
-  [%expect{|
+  [%expect {|
     wheel: run
     2 finished
     1 finished |}]
