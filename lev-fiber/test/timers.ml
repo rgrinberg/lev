@@ -1,3 +1,4 @@
+open Stdune
 open Fiber.O
 module Timer = Lev_fiber.Timer
 module Wheel = Timer.Wheel
@@ -44,3 +45,34 @@ let%expect_test "timer wheel cancellation" =
   [%expect {|
     cancellation succeeded
     wheel: stop |}]
+
+let%expect_test "timer wheel cancellation" =
+  Lev_fiber.run (Lev.Loop.create ()) ~f:(fun () ->
+      let* wheel = Wheel.create ~delay:0.2 in
+      Fiber.fork_and_join_unit
+        (fun () ->
+          let* t1 = Wheel.task wheel in
+          let* t2 = Wheel.task wheel in
+          let await t n =
+            let+ t = Wheel.await t in
+            match t with
+            | `Ok -> printfn "%i finished" n
+            | `Cancelled -> assert false
+          in
+          let run () =
+            let* () =
+              Fiber.fork_and_join_unit
+                (fun () -> await t1 1)
+                (fun () -> await t2 2)
+            in
+            Wheel.stop wheel
+          in
+          Wheel.reset t1;
+          run ())
+        (fun () ->
+          print_endline "wheel: run";
+          Wheel.run wheel));
+  [%expect{|
+    wheel: run
+    2 finished
+    1 finished |}]
