@@ -217,7 +217,7 @@ module Timer = struct
     let stop t =
       match !t with
       | Stopped -> Fiber.return ()
-      | Running r ->
+      | Running r -> (
           t := Stopped;
           let rec loop () =
             match Removable_queue.pop r.queue with
@@ -231,7 +231,10 @@ module Timer = struct
                 in
                 loop ()
           in
-          loop ()
+          let* () = loop () in
+          match r.waiting with
+          | None -> Fiber.return ()
+          | Some w -> Fiber.Ivar.fill w ())
   end
 end
 
