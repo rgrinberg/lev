@@ -344,7 +344,7 @@ module Socket = struct
           Lev.Io.stop io t.loop;
           Lev.Io.destroy io)
         fd
-        (Lev.Io.Event.Set.create ~read:true ())
+        (Lev.Io.Event.Set.create ~write:true ())
     in
     Lev.Io.start io t.loop;
     let+ fd = Fiber.Ivar.read ivar in
@@ -369,7 +369,7 @@ module Socket = struct
       let io =
         Lev.Io.create
           (fun _ _ _ ->
-            (* TODO shouuld we just accept immediately here? *)
+            (* TODO should we just accept immediately here? *)
             let t = Fdecl.get t in
             Queue.push scheduler.queue (Fiber.Fill (t.await, ())))
           fd
