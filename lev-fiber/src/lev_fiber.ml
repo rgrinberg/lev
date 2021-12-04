@@ -378,7 +378,6 @@ module Socket = struct
       let io =
         Lev.Io.create
           (fun _ _ _ ->
-            (* TODO should we just accept immediately here? *)
             let t = Fdecl.get t in
             Queue.push scheduler.queue (Fiber.Fill (t.await, ())))
           fd
