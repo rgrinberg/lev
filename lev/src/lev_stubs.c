@@ -155,12 +155,12 @@ static struct custom_operations watcher_ops = {
     hash_watcher,  custom_serialize_default, custom_deserialize_default};
 
 static struct custom_operations periodic_custom_ops = {
-    "lev.watcher", custom_finalize_default,  compare_watchers,
-    hash_watcher,  custom_serialize_default, custom_deserialize_default};
+    "lev.periodic", custom_finalize_default,  compare_watchers,
+    hash_watcher,   custom_serialize_default, custom_deserialize_default};
 
 static struct custom_operations embed_manual_ops = {
-    "lev.watcher", custom_finalize_default,  compare_watchers,
-    hash_watcher,  custom_serialize_default, custom_deserialize_default};
+    "lev.embed",  custom_finalize_default,  compare_watchers,
+    hash_watcher, custom_serialize_default, custom_deserialize_default};
 
 CAMLprim value lev_version(value v_unit) {
   CAMLparam1(v_unit);
