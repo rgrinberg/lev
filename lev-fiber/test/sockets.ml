@@ -2,7 +2,7 @@ open! Stdune
 open Fiber.O
 open Lev_fiber
 
-let%expect_test "server" =
+let%expect_test "server & client" =
   let path = "levfiber.sock" in
   (try Unix.unlink path with Unix.Unix_error _ -> ());
   let sockaddr = Unix.ADDR_UNIX path in
@@ -29,22 +29,10 @@ let%expect_test "server" =
     let client () =
       let* () = Fiber.Ivar.read ready_client in
       let fd = socket () in
-      let* thread = Thread.create () in
-      let* task =
-        Thread.task thread ~f:(fun () ->
-            Unix.set_nonblock fd;
-            print_endline "client: connecting";
-            Unix.connect fd sockaddr;
-            print_endline "client: connected";
-            Unix.close fd)
-      in
-      let+ res = Thread.await task in
-      (match res with
-      | Error `Cancelled -> assert false
-      | Error (`Exn exn) ->
-          Format.eprintf "%a@." Exn_with_backtrace.pp_uncaught exn
-      | Ok () -> ());
-      Thread.close thread
+      print_endline "client: starting";
+      let+ () = Socket.connect fd sockaddr in
+      print_endline "client: successfully connected";
+      Unix.close fd
     in
     Fiber.fork_and_join_unit client server
   in
@@ -54,7 +42,7 @@ let%expect_test "server" =
     server: starting
     server: created
     server: serving
-    client: connecting
-    client: connected
+    client: starting
+    client: successfully connected
     server: client connected
     server: finished |}]

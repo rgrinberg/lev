@@ -337,21 +337,27 @@ end
 
 module Socket = struct
   let connect fd sock =
+    (* TODO windoze *)
+    let* scheduler = Fiber.Var.get_exn scheduler in
     Unix.set_nonblock fd;
     let ivar = Fiber.Ivar.create () in
-    let* t = Fiber.Var.get_exn t in
-    let io =
-      Lev.Io.create
-        (fun io fd _ ->
-          Queue.push t.queue (Fiber.Fill (ivar, fd));
-          Lev.Io.stop io t.loop;
-          Lev.Io.destroy io)
-        fd
-        (Lev.Io.Event.Set.create ~write:true ())
-    in
-    Lev.Io.start io t.loop;
-    let+ fd = Fiber.Ivar.read ivar in
-    Unix.connect fd sock
+    match Unix.connect fd sock with
+    | () -> Fiber.return ()
+    | exception Unix.Unix_error (Unix.EINPROGRESS, _, _) -> (
+        let io =
+          Lev.Io.create
+            (fun io _ _ ->
+              Queue.push scheduler.queue (Fiber.Fill (ivar, ()));
+              Lev.Io.stop io scheduler.loop;
+              Lev.Io.destroy io)
+            fd
+            (Lev.Io.Event.Set.create ~write:true ())
+        in
+        Lev.Io.start io scheduler.loop;
+        let+ () = Fiber.Ivar.read ivar in
+        match Unix.getsockopt_error fd with
+        | None -> ()
+        | Some err -> raise (Unix.Unix_error (err, "connect", "")))
 
   module Server = struct
     type t = {
