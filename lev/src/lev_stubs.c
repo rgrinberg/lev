@@ -139,12 +139,6 @@ static long hash_watcher(value watcher) {
   return (long)Ev_watcher_val(watcher);
 }
 
-static void finalize_watcher(value v_watcher) {
-  ev_watcher *w = Ev_watcher_val(v_watcher);
-  caml_remove_generational_global_root((value *)(&(w->data)));
-  caml_stat_free(w);
-}
-
 struct periodic_cbs {
   value watcher;
   value reschedule;
