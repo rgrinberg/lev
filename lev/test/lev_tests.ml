@@ -285,3 +285,18 @@ let%expect_test "timer/consecutive again" =
     resetting timer
     resetting timer
     resetting timer |}]
+
+exception Idle
+
+let%expect_test "callback exception" =
+  let loop = Loop.create () in
+  let idle = Idle.create (fun _ -> raise Idle) in
+  Idle.start idle loop;
+  let with_idle () =
+    try ignore (Loop.run loop Once) with Idle -> print_endline "caught idle!"
+  in
+  with_idle ();
+  with_idle ();
+  [%expect{|
+    caught idle!
+    caught idle! |}]
