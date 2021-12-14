@@ -14,6 +14,7 @@ depends: [
   "dune" {>= "2.9"}
   "ppx_expect" {with-test}
   "lev"
+  "bigstringaf"
   "fiber"
   "stdune"
   "base-unix"

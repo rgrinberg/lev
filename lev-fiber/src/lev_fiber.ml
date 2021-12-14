@@ -20,9 +20,9 @@ let scheduler = t
 module Buffer = struct
   include Bip_buffer
 
-  type t = Bytes.t Bip_buffer.t
+  type t = Bigstringaf.t Bip_buffer.t
 
-  let create ~size = create (Bytes.create size) ~len:size
+  let create ~size = create (Bigstringaf.create size) ~len:size
 end
 
 module Thread = struct

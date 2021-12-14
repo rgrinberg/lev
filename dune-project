@@ -28,6 +28,7 @@
  (depends
   (ppx_expect :with-test)
   lev
+  bigstringaf
   fiber
   stdune
   base-unix))
