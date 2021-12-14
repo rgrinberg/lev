@@ -70,14 +70,13 @@ module Io : sig
   val fd : 'a t -> Unix.file_descr
   val write : output t -> Faraday.t
   val resume_write : output t -> unit Fiber.t
+  val flushed : output t -> unit Fiber.t
   val run : _ t -> unit Fiber.t
 
   module Slice : sig
     type t
 
-    val length : t -> int
-    val get : t -> int -> char
-    val sub : t -> pos:int -> len:int -> string
+    val buffer : t -> Bigstringaf.t
     val consume : t -> int -> unit
   end
 

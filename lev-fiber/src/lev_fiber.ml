@@ -25,6 +25,17 @@ module Buffer = struct
   let create ~size = create (Bigstringaf.create size) ~len:size
 end
 
+module State = struct
+  type 'a t' = Open of 'a | Closed
+  type 'a t = 'a t' ref
+
+  let check_open t =
+    match !t with Closed -> Code_error.raise "must be opened" [] | Open a -> a
+
+  let create a = ref (Open a)
+  let close t = t := Closed
+end
+
 module Thread = struct
   type job =
     | Job :
@@ -250,19 +261,56 @@ let waitpid ~pid =
   Lev.Child.start child loop;
   Fiber.Ivar.read ivar
 
+module Lev_fd = struct
+  type state = {
+    io : Lev.Io.t;
+    scheduler : scheduler;
+    mutable read : unit Fiber.Ivar.t option;
+    mutable write : unit Fiber.Ivar.t option;
+    mutable refs : int;
+  }
+
+  type t = state State.t
+
+  let deref t' =
+    let+ scheduler = Fiber.Var.get_exn scheduler in
+    let t = State.check_open t' in
+    t.refs <- t.refs - 1;
+    if t.refs = 0 then (
+      State.close t';
+      Lev.Io.stop t.io scheduler.loop;
+      Unix.close (Lev.Io.fd t.io);
+      Lev.Io.destroy t.io)
+
+  let make_cb t scheduler _ _ set =
+    let (nb : t) = Fdecl.get t in
+    match !nb with
+    | Closed -> ()
+    | Open nb -> (
+        (match nb.read with
+        | Some ivar when Lev.Io.Event.Set.mem set Read ->
+            Queue.push scheduler.queue (Fiber.Fill (ivar, ()))
+        | _ -> ());
+        match nb.write with
+        | Some ivar when Lev.Io.Event.Set.mem set Write ->
+            Queue.push scheduler.queue (Fiber.Fill (ivar, ()))
+        | _ -> ())
+
+  let create refs events fd : t Fiber.t =
+    let+ scheduler = Fiber.Var.get_exn scheduler in
+    let t = Fdecl.create Dyn.opaque in
+    let io = Lev.Io.create (make_cb t scheduler) fd events in
+    Fdecl.set t
+      (State.create { scheduler; io; read = None; write = None; refs });
+    Fdecl.get t
+end
+
 module Io = struct
   type input = Input
   type output = Output
   type 'a mode = Input : input mode | Output : output mode
   type blocking = { chan : out_channel; buffer : Bytes.t; thread : Thread.t }
-
-  type non_blocking = {
-    mutable read : unit Fiber.Ivar.t option;
-    mutable write : unit Fiber.Ivar.t option;
-    io : Lev.Io.t;
-  }
-
-  type kind = Blocking of blocking | Non_blocking of non_blocking
+  type kind = Blocking of blocking | Non_blocking of Lev_fd.t
 
   type _ buffer =
     | Write : Faraday.t * unit Fiber.Mvar.t -> output buffer
@@ -299,34 +347,7 @@ module Io = struct
           let chan = Unix.out_channel_of_descr fd in
           let buffer = Bytes.create buffer_size in
           Blocking { thread; buffer; chan }
-      | `Non_blocking ->
-          let nb = Fdecl.create Dyn.opaque in
-          let events =
-            let read, write =
-              match mode with Input -> (true, false) | Output -> (false, true)
-            in
-            Lev.Io.Event.Set.create ~read ~write ()
-          in
-          let io =
-            let read _ _ set =
-              let nb = Fdecl.get nb in
-              match nb.read with
-              | Some ivar when Lev.Io.Event.Set.mem set Read ->
-                  Queue.push scheduler.queue (Fiber.Fill (ivar, ()))
-              | _ -> ()
-            in
-            let write _ _ set =
-              let nb = Fdecl.get nb in
-              match nb.write with
-              | Some ivar when Lev.Io.Event.Set.mem set Write ->
-                  Queue.push scheduler.queue (Fiber.Fill (ivar, ()))
-              | _ -> ()
-            in
-            let f = match mode with Input -> read | Output -> write in
-            Lev.Io.create f fd events
-          in
-          Fdecl.set nb { read = None; write = None; io };
-          Fiber.return (Non_blocking (Fdecl.get nb))
+      | `Non_blocking -> Fiber.return (Non_blocking (assert false))
     in
     ref (Open { buffer; fd; kind; closer })
 
@@ -381,6 +402,8 @@ module Io = struct
     let t = check_open t in
     match t.buffer with Write (_, mvar) -> Fiber.Mvar.write mvar ()
 
+  let flushed _ = assert false
+
   let run (type a) (t : a t) =
     let t = check_open t in
     match t.buffer with Write _ -> run_write t | Read _ -> assert false
@@ -388,9 +411,7 @@ module Io = struct
   module Slice = struct
     type t
 
-    let length _ = assert false
-    let get _ = assert false
-    let sub _ = assert false
+    let buffer _ = assert false
     let consume _ = assert false
   end
 
