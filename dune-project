@@ -29,6 +29,7 @@
   (ppx_expect :with-test)
   lev
   bigstringaf
+  faraday
   fiber
   stdune
   base-unix))
