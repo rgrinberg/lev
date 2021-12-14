@@ -1,5 +1,4 @@
 type 'a t
-
 type elt_in_channel
 
 val create : unit -> 'a t

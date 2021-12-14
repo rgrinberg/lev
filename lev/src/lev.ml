@@ -11,15 +11,10 @@ struct
   type t = int
 
   let mem t c = t land Element.to_int c <> 0
-
   let singleton x : t = Element.to_int x
-
   let empty : t = 0
-
   let union x y = x lor y
-
   let negate x = lnot x
-
   let inter x y = x land y
 end
 
@@ -89,9 +84,7 @@ module Backend = struct
   end
 
   external supported : unit -> Set.t = "lev_backend_supported"
-
   external embeddable : unit -> Set.t = "lev_backend_embeddable"
-
   external recommended : unit -> Set.t = "lev_backend_recommended"
 end
 
@@ -101,7 +94,6 @@ module Timestamp = struct
   external sleep : t -> unit = "lev_sleep"
 
   let to_float x = x
-
   let of_float x = x
 end
 
@@ -179,11 +171,8 @@ module Loop = struct
   let create ?(flags = flags) () = create flags
 
   external now : t -> Timestamp.t = "lev_ev_now"
-
   external destroy : t -> unit = "lev_loop_destroy"
-
   external now_update : t -> unit = "lev_loop_now_update"
-
   external run : t -> int -> bool = "lev_ev_run"
 
   type run = Once | Nowait
@@ -195,7 +184,6 @@ module Loop = struct
   external nowait : unit -> int = "lev_loop_run_nowait"
 
   let nowait = nowait ()
-
   let int_of_run = function Once -> once | Nowait -> nowait
 
   let run t v =
@@ -221,7 +209,6 @@ module Loop = struct
   external cancel : unit -> int = "lev_loop_break_cancel_code"
 
   let cancel = cancel ()
-
   let int_of_break = function One -> one | All -> all | Cancel -> cancel
 
   external break : t -> int -> unit = "lev_loop_break"
@@ -235,7 +222,6 @@ module Loop = struct
     List.find Backend.all ~f:(fun backend -> Backend.Set.mem b backend)
 
   external suspend : t -> unit = "lev_loop_suspend"
-
   external resume : t -> unit = "lev_loop_resume"
 end
 
@@ -243,13 +229,9 @@ module type Watcher = sig
   type t
 
   val start : t -> Loop.t -> unit
-
   val is_active : t -> bool
-
   val is_pending : t -> bool
-
   val stop : t -> Loop.t -> unit
-
   val destroy : t -> unit
 end
 
@@ -260,9 +242,7 @@ struct
   open S
 
   external is_active : t -> bool = "lev_watcher_is_active"
-
   external is_pending : t -> bool = "lev_watcher_is_pending"
-
   external destroy : t -> unit = "lev_watcher_destroy"
 end
 
@@ -277,7 +257,6 @@ module Io = struct
     external write : unit -> int = "lev_io_write_code"
 
     let write = write ()
-
     let to_int = function Read -> read | Write -> write
 
     module Set = struct
@@ -307,7 +286,6 @@ module Io = struct
     = "lev_io_create"
 
   external start : t -> Loop.t -> unit = "lev_io_start"
-
   external stop : t -> Loop.t -> unit = "lev_io_stop"
 end
 
@@ -342,7 +320,6 @@ module Periodic = struct
         create_regular f offset interval
 
   external stop : t -> Loop.t -> unit = "lev_periodic_stop"
-
   external start : t -> Loop.t -> unit = "lev_periodic_start"
 end
 
@@ -359,11 +336,8 @@ module Timer = struct
   let create ?(repeat = 0.) ~after f = create (wrap_callback f) after repeat
 
   external remaining : t -> Loop.t -> Timestamp.t = "lev_timer_remaining"
-
   external stop : t -> Loop.t -> unit = "lev_timer_stop"
-
   external start : t -> Loop.t -> unit = "lev_timer_start"
-
   external again : t -> Loop.t -> unit = "lev_timer_again"
 end
 
@@ -375,9 +349,7 @@ module Signal = struct
   end)
 
   external stop : t -> Loop.t -> unit = "lev_signal_stop"
-
   external start : t -> Loop.t -> unit = "lev_signal_start"
-
   external create : (t -> unit -> unit) -> signal:int -> t = "lev_signal_create"
 
   let create f ~signal = create (wrap_callback f) ~signal
@@ -391,11 +363,9 @@ module Child = struct
   end)
 
   external stop : t -> Loop.t -> unit = "lev_child_stop"
-
   external start : t -> Loop.t -> unit = "lev_child_start"
 
   type pid = Any | Pid of int
-
   type trace = Terminate | Terminate_stop_or_continue
 
   external create :
@@ -418,9 +388,7 @@ module Cleanup = struct
   end)
 
   external stop : t -> Loop.t -> unit = "lev_cleanup_stop"
-
   external start : t -> Loop.t -> unit = "lev_cleanup_start"
-
   external create : (t -> unit -> unit) -> t = "lev_cleanup_create"
 
   let create f = create (wrap_callback f)
@@ -434,7 +402,6 @@ module Stat = struct
   end)
 
   external stop : t -> Loop.t -> unit = "lev_stat_stop"
-
   external start : t -> Loop.t -> unit = "lev_stat_start"
 
   external create : (t -> unit -> unit) -> string -> Timestamp.t -> t
@@ -453,9 +420,7 @@ module Embed = struct
   end)
 
   external destroy : t -> unit = "lev_embed_destroy"
-
   external stop : t -> Loop.t -> unit = "lev_embed_stop"
-
   external start : t -> Loop.t -> unit = "lev_embed_start"
 
   type sweep = Automatic | Manual of (t -> unit)
@@ -481,9 +446,7 @@ module Idle = struct
   end)
 
   external stop : t -> Loop.t -> unit = "lev_idle_stop"
-
   external start : t -> Loop.t -> unit = "lev_idle_start"
-
   external create : (t -> unit -> unit) -> t = "lev_idle_create"
 
   let create f = create (wrap_callback f)
@@ -497,9 +460,7 @@ module Check = struct
   end)
 
   external stop : t -> Loop.t -> unit = "lev_check_stop"
-
   external start : t -> Loop.t -> unit = "lev_check_start"
-
   external create : (t -> unit -> unit) -> t = "lev_check_create"
 
   let create f = create (wrap_callback f)
@@ -513,13 +474,9 @@ module Async = struct
   end)
 
   external stop : t -> Loop.t -> unit = "lev_async_stop"
-
   external start : t -> Loop.t -> unit = "lev_async_start"
-
   external pending : t -> bool = "lev_async_pending"
-
   external send : t -> Loop.t -> unit = "lev_async_send"
-
   external create : (t -> unit -> unit) -> t = "lev_async_create"
 
   let create f = create (wrap_callback f)
@@ -533,9 +490,7 @@ module Prepare = struct
   end)
 
   external stop : t -> Loop.t -> unit = "lev_prepare_stop"
-
   external start : t -> Loop.t -> unit = "lev_prepare_start"
-
   external create : (t -> unit -> unit) -> t = "lev_prepare_create"
 
   let create f = create (wrap_callback f)

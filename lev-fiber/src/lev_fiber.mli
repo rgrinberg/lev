@@ -50,7 +50,6 @@ module Thread : sig
   type 'a task
 
   val task : t -> f:(unit -> 'a) -> 'a task Fiber.t
-
   val cancel : 'a task -> unit Fiber.t
 
   val await :
@@ -62,11 +61,8 @@ end
 
 module Io : sig
   type input
-
   type output
-
   type 'a mode = Input : input mode | Output : output mode
-
   type 'a t
 
   val create :
@@ -84,31 +80,23 @@ module Io : sig
     (input t * output t) Fiber.t
 
   val fd : 'a t -> Unix.file_descr
-
   val flush : output t -> unit Fiber.t
 
   module Slice : sig
     type t
 
     val length : t -> int
-
     val get : t -> int -> char
-
     val sub : t -> pos:int -> len:int -> string
-
     val consume : t -> int -> unit
   end
 
   type reader
 
   val read : ?max:int -> reader -> Slice.t option Fiber.t
-
   val with_read : input t -> f:(reader -> 'a Fiber.t) -> 'a Fiber.t
-
   val closed : 'a t -> unit Fiber.t
-
   val close : 'a t -> unit
-
   val pipe : unit -> input t * output t
 end
 
@@ -117,7 +105,6 @@ module Socket : sig
     type t
 
     val create : Unix.file_descr -> Unix.sockaddr -> backlog:int -> t Fiber.t
-
     val close : t -> unit Fiber.t
 
     val serve :

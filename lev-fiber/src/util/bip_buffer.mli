@@ -12,21 +12,13 @@ end
 type 'a t
 
 val is_empty : 'a t -> bool
-
 val length : 'a t -> int
-
 val buffer : 'a t -> 'a
-
 val create : 'a -> len:int -> 'a t
-
 val junk : 'a t -> len:int -> unit
-
 val peek : 'a t -> Slice.t option
-
 val reserve : 'a t -> len:int -> int option
-
 val commit : 'a t -> len:int -> unit
-
 val compress_gain : 'a t -> int
 
 val compress : 'a t -> ('a, 'a) Blit.t -> unit

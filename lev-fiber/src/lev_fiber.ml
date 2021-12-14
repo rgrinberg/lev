@@ -15,7 +15,6 @@ type t = {
 type scheduler = t
 
 let t : t Fiber.Var.t = Fiber.Var.create ()
-
 let scheduler = t
 
 module Buffer = struct
@@ -115,7 +114,6 @@ module Timer = struct
     }
 
     and state = Stopped | Running of running
-
     and t = state ref
 
     let create ~delay =
@@ -254,11 +252,8 @@ let waitpid ~pid =
 
 module Io = struct
   type input
-
   type output
-
   type 'a mode = Input : input mode | Output : output mode
-
   type kind = Blocking of Thread.t | Non_blocking of Lev.Io.t
 
   type 'a state =
@@ -305,11 +300,8 @@ module Io = struct
     type t
 
     let length _ = assert false
-
     let get _ = assert false
-
     let sub _ = assert false
-
     let consume _ = assert false
   end
 
@@ -320,7 +312,6 @@ module Io = struct
     assert false
 
   let with_read _ = assert false
-
   let closed _ = assert false
 
   let close t =
@@ -331,7 +322,6 @@ module Io = struct
         t := Closed
 
   let fd _ = assert false
-
   let pipe () = assert false
 end
 

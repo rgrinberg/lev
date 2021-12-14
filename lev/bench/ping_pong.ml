@@ -8,7 +8,6 @@
 open Lev
 
 let client_events = Io.Event.Set.create ~read:true ~write:true ()
-
 let response = Bytes.of_string "+PONG\r\n"
 
 type client = {

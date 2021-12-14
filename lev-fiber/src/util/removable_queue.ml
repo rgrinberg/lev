@@ -52,7 +52,6 @@ let push : 'a. 'a t -> 'a -> 'a node =
   inserted_node
 
 let mark_as_detached (node : 'a node) = node.prev <- node
-
 let is_detached (node : 'a node) = node.prev == node
 
 (* removes head node *)

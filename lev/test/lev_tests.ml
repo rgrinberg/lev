@@ -297,6 +297,6 @@ let%expect_test "callback exception" =
   in
   with_idle ();
   with_idle ();
-  [%expect{|
+  [%expect {|
     caught idle!
     caught idle! |}]

@@ -4,15 +4,10 @@ type 'a t
 type 'a node
 
 val data : 'a node -> 'a
-
 val remove : _ node -> unit
-
 val is_empty : _ t -> bool
-
 val create : unit -> 'a t
-
 val push : 'a t -> 'a -> 'a node
-
 val pop : 'a t -> 'a option
 
 val length : 'a t -> int

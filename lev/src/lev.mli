@@ -53,9 +53,7 @@ module Backend : sig
   with type backend := t
 
   val supported : unit -> Set.t
-
   val embeddable : unit -> Set.t
-
   val recommended : unit -> Set.t
 end
 
@@ -63,9 +61,7 @@ module Timestamp : sig
   type t
 
   val sleep : t -> unit
-
   val of_float : float -> t
-
   val to_float : t -> float
 end
 
@@ -85,17 +81,12 @@ module Loop : sig
 
     module Set : sig
       type elt := t
-
       type t
 
       val singleton : elt -> t
-
       val of_backend_set : Backend.Set.t -> t
-
       val inter : t -> t -> t
-
       val union : t -> t -> t
-
       val negate : t -> t
     end
   end
@@ -109,27 +100,20 @@ module Loop : sig
       the only one that can handle child watchers. *)
 
   val create : ?flags:Flag.Set.t -> unit -> t
-
   val destroy : t -> unit
-
   val now_update : t -> unit
 
   type run = Once | Nowait
 
   val run : t -> run -> [ `No_more_active_watchers | `Otherwise ]
-
   val run_until_done : t -> unit
-
   val depth : t -> int
 
   type break = One | All | Cancel
 
   val break : t -> break -> unit
-
   val backend : t -> Backend.t
-
   val suspend : t -> unit
-
   val resume : t -> unit
 end
 
@@ -176,11 +160,9 @@ module Io : sig
 
     module Set : sig
       type t
-
       type event
 
       val mem : t -> event -> bool
-
       val create : ?read:bool -> ?write:bool -> unit -> t
     end
     with type event := t
@@ -201,9 +183,7 @@ module Timer : sig
   include Watcher
 
   val create : ?repeat:float -> after:float -> (t -> unit) -> t
-
   val remaining : t -> Loop.t -> Timestamp.t
-
   val again : t -> Loop.t -> unit
 end
 
@@ -220,7 +200,6 @@ module Child : sig
   include Watcher
 
   type pid = Any | Pid of int
-
   type trace = Terminate | Terminate_stop_or_continue
 
   val create :
@@ -243,9 +222,7 @@ module Async : sig
   include Watcher
 
   val create : (t -> unit) -> t
-
   val send : t -> Loop.t -> unit
-
   val pending : t -> bool
 end
 
@@ -273,6 +250,5 @@ module Embed : sig
   type sweep = Automatic | Manual of (t -> unit)
 
   val create : sweep -> Loop.t -> t
-
   val sweep : t -> Loop.t -> unit
 end

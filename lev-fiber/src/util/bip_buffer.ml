@@ -41,7 +41,6 @@ let peek t =
   else None
 
 let is_empty t = t.a_start = t.a_end
-
 let length t = t.a_end - t.a_start + t.b_end
 
 let junk t ~len:size =
@@ -55,7 +54,6 @@ let junk t ~len:size =
     t.b_inuse <- false)
 
 let space_left_for_a t = t.buf_len - t.a_end
-
 let space_left_for_b t = t.a_start - t.b_end
 
 let reserve t ~len:size =

@@ -1,5 +1,4 @@
 type 'a t = { work_chan : 'a Channel.t } [@@unboxed]
-
 type task = Channel.elt_in_channel
 
 let rec run t f =
@@ -20,5 +19,4 @@ let add_work t v =
   | Ok _ as task -> task
 
 let cancel_if_not_consumed = Channel.remove_if_not_consumed
-
 let complete_tasks_and_stop t = Channel.close t.work_chan
