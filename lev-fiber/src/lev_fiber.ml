@@ -281,14 +281,23 @@ module Io = struct
   let check_open t =
     match !t with Closed -> Code_error.raise "Io.t closed" [] | Open t -> t
 
-  let create_gen (type a) fd buffer kind (mode : a mode) ~closer : a t Fiber.t =
+  let create_gen (type a) fd kind (mode : a mode) ~closer : a t Fiber.t =
+    let buffer_size = 4096 in
+    let buffer : a buffer =
+      match mode with
+      | Input -> Read (Buffer.create ~size:buffer_size)
+      | Output ->
+          let faraday = Faraday.create buffer_size in
+          let mvar = Fiber.Mvar.create () in
+          Write (faraday, mvar)
+    in
     let* scheduler = Fiber.Var.get_exn t in
     let+ kind =
       match kind with
       | `Blocking ->
           let+ thread = Thread.create () in
           let chan = Unix.out_channel_of_descr fd in
-          let buffer = Bytes.create 4096 in
+          let buffer = Bytes.create buffer_size in
           Blocking { thread; buffer; chan }
       | `Non_blocking ->
           let nb = Fdecl.create Dyn.opaque in
@@ -317,13 +326,13 @@ module Io = struct
     in
     ref (Open { buffer; fd; kind; closer })
 
-  let create fd buffer kind mode =
-    create_gen ~closer:(lazy (Unix.close fd)) fd buffer kind mode
+  let create fd kind mode =
+    create_gen ~closer:(lazy (Unix.close fd)) fd kind mode
 
-  let create_rw fd ~input ~output kind =
+  let create_rw fd kind =
     let closer = lazy (Unix.close fd) in
-    let* r = create_gen ~closer fd input kind Input in
-    let+ w = create_gen ~closer fd output kind Output in
+    let* r = create_gen ~closer fd kind Input in
+    let+ w = create_gen ~closer fd kind Output in
     (r, w)
 
   let run_write =
