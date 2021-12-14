@@ -7,6 +7,8 @@
   util
   stdune
   unix
+  faraday
+  bigstringaf
   threads.posix
   ;; This is because of the (implicit_transitive_deps false)
   ;; in dune-project
