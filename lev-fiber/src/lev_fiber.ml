@@ -308,18 +308,22 @@ module Io = struct
             Lev.Io.Event.Set.create ~read ~write ()
           in
           let io =
-            Lev.Io.create
-              (fun _ _ set ->
-                let nb = Fdecl.get nb in
-                (match nb.read with
-                | Some ivar when Lev.Io.Event.Set.mem set Read ->
-                    Queue.push scheduler.queue (Fiber.Fill (ivar, ()))
-                | _ -> ());
-                match nb.write with
-                | Some ivar when Lev.Io.Event.Set.mem set Write ->
-                    Queue.push scheduler.queue (Fiber.Fill (ivar, ()))
-                | _ -> ())
-              fd events
+            let read _ _ set =
+              let nb = Fdecl.get nb in
+              match nb.read with
+              | Some ivar when Lev.Io.Event.Set.mem set Read ->
+                  Queue.push scheduler.queue (Fiber.Fill (ivar, ()))
+              | _ -> ()
+            in
+            let write _ _ set =
+              let nb = Fdecl.get nb in
+              match nb.write with
+              | Some ivar when Lev.Io.Event.Set.mem set Write ->
+                  Queue.push scheduler.queue (Fiber.Fill (ivar, ()))
+              | _ -> ()
+            in
+            let f = match mode with Input -> read | Output -> write in
+            Lev.Io.create f fd events
           in
           Fdecl.set nb { read = None; write = None; io };
           Fiber.return (Non_blocking (Fdecl.get nb))
