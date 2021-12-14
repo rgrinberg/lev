@@ -256,16 +256,22 @@ module Io = struct
   type 'a mode = Input : input mode | Output : output mode
   type kind = Blocking of Thread.t | Non_blocking of Lev.Io.t
 
-  type 'a state =
-    | Closed
-    | Open of {
-        closer : unit Lazy.t;
-        buffer : Buffer.t;
-        fd : Unix.file_descr;
-        kind : kind;
-      }
+  type _ buffer =
+    | Write : Faraday.t * unit Fiber.Mvar.t -> output buffer
+    | Read : Buffer.t -> input buffer
 
+  type 'a open_ = {
+    closer : unit Lazy.t;
+    buffer : 'a buffer;
+    fd : Unix.file_descr;
+    kind : kind;
+  }
+
+  type 'a state = Closed | Open of 'a open_
   type 'a t = 'a state ref
+
+  let check_open t =
+    match !t with Closed -> Code_error.raise "Io.t closed" [] | Open t -> t
 
   let create_gen (type a) fd buffer kind (mode : a mode) ~closer : a t Fiber.t =
     let+ kind =
@@ -294,7 +300,29 @@ module Io = struct
     let+ w = create_gen ~closer fd output kind Output in
     (r, w)
 
-  let flush _ = assert false
+  let run_write =
+    let rec loop t f mvar =
+      match Faraday.operation f with
+      | `Yield ->
+          let* () = Fiber.Mvar.read mvar in
+          loop t f mvar
+      | `Writev _ -> failwith "TODO"
+      | `Close -> failwith "TODO"
+    in
+    fun (t : output open_) ->
+      match t.buffer with Write (f, mvar) -> loop t f mvar
+
+  let write (t : output t) =
+    let t = check_open t in
+    match t.buffer with Write (f, _) -> f
+
+  let resume_write (t : output t) =
+    let t = check_open t in
+    match t.buffer with Write (_, mvar) -> Fiber.Mvar.write mvar ()
+
+  let run (type a) (t : a t) =
+    let t = check_open t in
+    match t.buffer with Write _ -> run_write t | Read _ -> assert false
 
   module Slice = struct
     type t

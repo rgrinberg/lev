@@ -1,11 +1,5 @@
 open Stdune
 
-module Buffer : sig
-  type t
-
-  val create : size:int -> t
-end
-
 module Timer : sig
   val sleepf : float -> unit Fiber.t
   (** [sleep f] wait for [f] seconds  *)
@@ -66,21 +60,17 @@ module Io : sig
   type 'a t
 
   val create :
-    Unix.file_descr ->
-    Buffer.t ->
-    [ `Blocking | `Non_blocking ] ->
-    'a mode ->
-    'a t Fiber.t
+    Unix.file_descr -> [ `Blocking | `Non_blocking ] -> 'a mode -> 'a t Fiber.t
 
   val create_rw :
     Unix.file_descr ->
-    input:Buffer.t ->
-    output:Buffer.t ->
     [ `Blocking | `Non_blocking ] ->
     (input t * output t) Fiber.t
 
   val fd : 'a t -> Unix.file_descr
-  val flush : output t -> unit Fiber.t
+  val write : output t -> Faraday.t
+  val resume_write : output t -> unit Fiber.t
+  val run : _ t -> unit Fiber.t
 
   module Slice : sig
     type t
