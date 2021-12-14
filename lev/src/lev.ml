@@ -280,6 +280,7 @@ module Io = struct
   end)
 
   external fd : t -> Unix.file_descr = "lev_io_fd"
+  external modify : t -> int -> unit = "lev_io_modify"
 
   external create :
     (t -> Unix.file_descr -> Event.Set.t -> unit) -> Unix.file_descr -> int -> t

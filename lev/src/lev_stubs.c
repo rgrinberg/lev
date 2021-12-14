@@ -337,6 +337,13 @@ CAMLprim value lev_io_create(value v_cb, value v_fd, value v_flags) {
   CAMLreturn(v_io);
 }
 
+CAMLprim value lev_io_modify(value v_io, v_flags) {
+  CAMLparam2(v_io, v_flags);
+  ev_io *io = Ev_io_val(v_io);
+  ev_io_modify(io, Int_val(v_flags));
+  CAMLreturn(Val_unit);
+}
+
 CAMLprim value lev_timer_create(value v_cb, value v_after, value v_repeat) {
   CAMLparam3(v_cb, v_after, v_repeat);
   CAMLlocal2(v_timer, v_cb_applied);

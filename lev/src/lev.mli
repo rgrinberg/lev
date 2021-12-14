@@ -171,6 +171,7 @@ module Io : sig
   include Watcher
 
   val fd : t -> Unix.file_descr
+  val modify : t -> Event.Set.t -> unit
 
   val create :
     (t -> Unix.file_descr -> Event.Set.t -> unit) ->
