@@ -251,10 +251,18 @@ let waitpid ~pid =
   Fiber.Ivar.read ivar
 
 module Io = struct
-  type input
-  type output
+  type input = Input
+  type output = Output
   type 'a mode = Input : input mode | Output : output mode
-  type kind = Blocking of Thread.t | Non_blocking of Lev.Io.t
+  type blocking = { chan : out_channel; buffer : Bytes.t; thread : Thread.t }
+
+  type non_blocking = {
+    mutable read : unit Fiber.Ivar.t option;
+    mutable write : unit Fiber.Ivar.t option;
+    io : Lev.Io.t;
+  }
+
+  type kind = Blocking of blocking | Non_blocking of non_blocking
 
   type _ buffer =
     | Write : Faraday.t * unit Fiber.Mvar.t -> output buffer
@@ -274,20 +282,38 @@ module Io = struct
     match !t with Closed -> Code_error.raise "Io.t closed" [] | Open t -> t
 
   let create_gen (type a) fd buffer kind (mode : a mode) ~closer : a t Fiber.t =
+    let* scheduler = Fiber.Var.get_exn t in
     let+ kind =
       match kind with
       | `Blocking ->
           let+ thread = Thread.create () in
-          Blocking thread
+          let chan = Unix.out_channel_of_descr fd in
+          let buffer = Bytes.create 4096 in
+          Blocking { thread; buffer; chan }
       | `Non_blocking ->
+          let nb = Fdecl.create Dyn.opaque in
           let events =
             let read, write =
               match mode with Input -> (true, false) | Output -> (false, true)
             in
             Lev.Io.Event.Set.create ~read ~write ()
           in
-          let io = Lev.Io.create (fun _ _ _ -> assert false) fd events in
-          Fiber.return (Non_blocking io)
+          let io =
+            Lev.Io.create
+              (fun _ _ set ->
+                let nb = Fdecl.get nb in
+                (match nb.read with
+                | Some ivar when Lev.Io.Event.Set.mem set Read ->
+                    Queue.push scheduler.queue (Fiber.Fill (ivar, ()))
+                | _ -> ());
+                match nb.write with
+                | Some ivar when Lev.Io.Event.Set.mem set Write ->
+                    Queue.push scheduler.queue (Fiber.Fill (ivar, ()))
+                | _ -> ())
+              fd events
+          in
+          Fdecl.set nb { read = None; write = None; io };
+          Fiber.return (Non_blocking (Fdecl.get nb))
     in
     ref (Open { buffer; fd; kind; closer })
 
@@ -301,16 +327,38 @@ module Io = struct
     (r, w)
 
   let run_write =
-    let rec loop t f mvar =
+    let rec loop t f mvar write =
       match Faraday.operation f with
       | `Yield ->
           let* () = Fiber.Mvar.read mvar in
-          loop t f mvar
-      | `Writev _ -> failwith "TODO"
+          loop t f mvar write
+      | `Writev iovecs ->
+          let* () = write iovecs in
+          loop t f mvar write
       | `Close -> failwith "TODO"
     in
+    let make_blocking_writer (_ : blocking) _ = assert false in
+    let make_nonblocking_writer (nb : non_blocking) _ =
+      let+ () =
+        match nb.write with
+        | Some ivar -> Fiber.Ivar.read ivar
+        | None ->
+            let ivar = Fiber.Ivar.create () in
+            nb.write <- Some ivar;
+            Fiber.Ivar.read ivar
+      in
+      nb.write <- None;
+      assert false
+    in
     fun (t : output open_) ->
-      match t.buffer with Write (f, mvar) -> loop t f mvar
+      match t.buffer with
+      | Write (f, mvar) ->
+          let write =
+            match t.kind with
+            | Blocking b -> make_blocking_writer b
+            | Non_blocking nb -> make_nonblocking_writer nb
+          in
+          loop t f mvar write
 
   let write (t : output t) =
     let t = check_open t in
