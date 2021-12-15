@@ -492,23 +492,23 @@ module Socket = struct
         let* () = Fiber.Pool.stop t.pool in
         Fiber.Ivar.fill t.await ()
 
-    let serve (t : t) ~f =
-      let* scheduler = Fiber.Var.get_exn scheduler in
-      Lev.Io.start t.io scheduler.loop;
-      Fiber.fork_and_join_unit
-        (fun () -> Fiber.Pool.run t.pool)
-        (fun () ->
-          let rec loop () =
-            let* () = Fiber.Ivar.read t.await in
-            match t.close with
-            | true -> Fiber.return ()
-            | false ->
-                t.await <- Fiber.Ivar.create ();
-                let fd, sockaddr = Unix.accept ~cloexec:true t.fd in
-                let* () = Fiber.Pool.task t.pool ~f:(fun () -> f fd sockaddr) in
-                loop ()
-          in
-          loop ())
+    let serve =
+      let rec loop t f =
+        let* () = Fiber.Ivar.read t.await in
+        match t.close with
+        | true -> Fiber.return ()
+        | false ->
+            t.await <- Fiber.Ivar.create ();
+            let fd, sockaddr = Unix.accept ~cloexec:true t.fd in
+            let* () = Fiber.Pool.task t.pool ~f:(fun () -> f fd sockaddr) in
+            loop t f
+      in
+      fun (t : t) ~f ->
+        let* scheduler = Fiber.Var.get_exn scheduler in
+        Lev.Io.start t.io scheduler.loop;
+        Fiber.fork_and_join_unit
+          (fun () -> Fiber.Pool.run t.pool)
+          (fun () -> loop t f)
   end
 end
 
