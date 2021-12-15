@@ -69,7 +69,6 @@ module Io : sig
 
   val fd : 'a t -> Unix.file_descr
   val write : output t -> Faraday.t -> [ `Yield | `Close ] Fiber.t
-  val flushed : output t -> unit Fiber.t
 
   module Slice : sig
     type t

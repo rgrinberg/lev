@@ -411,8 +411,6 @@ module Io = struct
             Faraday.shift f written;
             try_write t f buf (pos + written))
 
-  let flushed _ = assert false
-
   module Slice = struct
     type t
 
