@@ -6,10 +6,10 @@ let%expect_test "pipe" =
   let run () =
     let input, output = Io.pipe () in
     let write () =
-      let writer = Io.write output in
-      Faraday.write_string writer "foobar";
-      let* () = Io.resume_write output in
-      Io.flushed output
+      let f = Faraday.create 100 in
+      Faraday.write_string f "foobar";
+      let* res = Io.write output f in
+      match res with `Yield -> assert false | `Close -> Fiber.return ()
     in
     let read () =
       let+ () =
@@ -31,8 +31,7 @@ let%expect_test "pipe" =
       in
       Io.close input
     in
-    let test = Fiber.fork_and_join_unit read write in
-    Fiber.all_concurrently_unit [ Io.run input; Io.run output; test ]
+    Fiber.fork_and_join_unit read write
   in
   Lev_fiber.run (Lev.Loop.create ()) ~f:run;
   [%expect {||}]

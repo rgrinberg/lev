@@ -54,8 +54,8 @@ module Thread : sig
 end
 
 module Io : sig
-  type input
-  type output
+  type input = Input
+  type output = Output
   type 'a mode = Input : input mode | Output : output mode
   type 'a t
 
@@ -68,10 +68,8 @@ module Io : sig
     (input t * output t) Fiber.t
 
   val fd : 'a t -> Unix.file_descr
-  val write : output t -> Faraday.t
-  val resume_write : output t -> unit Fiber.t
+  val write : output t -> Faraday.t -> [ `Yield | `Close ] Fiber.t
   val flushed : output t -> unit Fiber.t
-  val run : _ t -> unit Fiber.t
 
   module Slice : sig
     type t

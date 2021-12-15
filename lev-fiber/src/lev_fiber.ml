@@ -265,33 +265,43 @@ module Lev_fd = struct
   type state = {
     io : Lev.Io.t;
     scheduler : scheduler;
-    mutable read : unit Fiber.Ivar.t option;
-    mutable write : unit Fiber.Ivar.t option;
+    read : unit Fiber.Ivar.t Queue.t;
+    write : unit Fiber.Ivar.t Queue.t;
     mutable refs : int;
   }
 
   type t = state State.t
 
-  let deref t' =
-    let+ scheduler = Fiber.Var.get_exn scheduler in
+  let await t what =
+    let t = State.check_open t in
+    let ivar = Fiber.Ivar.create () in
+    let q = match what with `Write -> t.write | `Read -> t.read in
+    Queue.push q ivar;
+    Fiber.Ivar.read ivar
+
+  let release t' =
     let t = State.check_open t' in
     t.refs <- t.refs - 1;
     if t.refs = 0 then (
       State.close t';
-      Lev.Io.stop t.io scheduler.loop;
+      Lev.Io.stop t.io t.scheduler.loop;
       Unix.close (Lev.Io.fd t.io);
       Lev.Io.destroy t.io)
+
+  let _retain t' =
+    let t = State.check_open t' in
+    t.refs <- t.refs + 1
 
   let make_cb t scheduler _ _ set =
     let (nb : t) = Fdecl.get t in
     match !nb with
     | Closed -> ()
     | Open nb -> (
-        (match nb.read with
+        (match Queue.pop nb.read with
         | Some ivar when Lev.Io.Event.Set.mem set Read ->
             Queue.push scheduler.queue (Fiber.Fill (ivar, ()))
         | _ -> ());
-        match nb.write with
+        match Queue.pop nb.write with
         | Some ivar when Lev.Io.Event.Set.mem set Write ->
             Queue.push scheduler.queue (Fiber.Fill (ivar, ()))
         | _ -> ())
@@ -301,7 +311,14 @@ module Lev_fd = struct
     let t = Fdecl.create Dyn.opaque in
     let io = Lev.Io.create (make_cb t scheduler) fd events in
     Fdecl.set t
-      (State.create { scheduler; io; read = None; write = None; refs });
+      (State.create
+         {
+           scheduler;
+           io;
+           read = Queue.create ();
+           write = Queue.create ();
+           refs;
+         });
     Fdecl.get t
 end
 
@@ -309,104 +326,92 @@ module Io = struct
   type input = Input
   type output = Output
   type 'a mode = Input : input mode | Output : output mode
-  type blocking = { chan : out_channel; buffer : Bytes.t; thread : Thread.t }
-  type kind = Blocking of blocking | Non_blocking of Lev_fd.t
 
   type _ buffer =
-    | Write : Faraday.t * unit Fiber.Mvar.t -> output buffer
+    | Write : {
+        faraday : Faraday.t;
+        mutable yield : unit Fiber.Ivar.t option;
+      }
+        -> output buffer
     | Read : Buffer.t -> input buffer
 
-  type 'a open_ = {
-    closer : unit Lazy.t;
-    buffer : 'a buffer;
-    fd : Unix.file_descr;
-    kind : kind;
-  }
+  type 'a open_ = { buffer : 'a buffer; fd : Lev_fd.t }
+  type 'a t = 'a open_ State.t
 
-  type 'a state = Closed | Open of 'a open_
-  type 'a t = 'a state ref
-
-  let check_open t =
-    match !t with Closed -> Code_error.raise "Io.t closed" [] | Open t -> t
-
-  let create_gen (type a) fd kind (mode : a mode) ~closer : a t Fiber.t =
+  let create_gen (type a) fd (mode : a mode) =
     let buffer_size = 4096 in
     let buffer : a buffer =
       match mode with
       | Input -> Read (Buffer.create ~size:buffer_size)
       | Output ->
           let faraday = Faraday.create buffer_size in
-          let mvar = Fiber.Mvar.create () in
-          Write (faraday, mvar)
+          Write { faraday; yield = None }
     in
-    let* scheduler = Fiber.Var.get_exn t in
-    let+ kind =
-      match kind with
-      | `Blocking ->
-          let+ thread = Thread.create () in
-          let chan = Unix.out_channel_of_descr fd in
-          let buffer = Bytes.create buffer_size in
-          Blocking { thread; buffer; chan }
-      | `Non_blocking -> Fiber.return (Non_blocking (assert false))
+    State.create { buffer; fd }
+
+  let create (type a) fd _nb (mode : a mode) =
+    let+ fd =
+      let read, write =
+        match mode with Input -> (true, false) | Output -> (false, true)
+      in
+      let set = Lev.Io.Event.Set.create ~read ~write () in
+      Lev_fd.create 1 set fd
     in
-    ref (Open { buffer; fd; kind; closer })
+    create_gen fd mode
 
-  let create fd kind mode =
-    create_gen ~closer:(lazy (Unix.close fd)) fd kind mode
-
-  let create_rw fd kind =
-    let closer = lazy (Unix.close fd) in
-    let* r = create_gen ~closer fd kind Input in
-    let+ w = create_gen ~closer fd kind Output in
+  let create_rw fd _ : (input t * output t) Fiber.t =
+    let+ fd =
+      let set = Lev.Io.Event.Set.create ~read:true ~write:true () in
+      Lev_fd.create 2 set fd
+    in
+    let r = create_gen fd Input in
+    let w = create_gen fd Output in
     (r, w)
 
-  let run_write =
-    let rec loop t f mvar write =
-      match Faraday.operation f with
-      | `Yield ->
-          let* () = Fiber.Mvar.read mvar in
-          loop t f mvar write
-      | `Writev iovecs ->
-          let* () = write iovecs in
-          loop t f mvar write
-      | `Close -> failwith "TODO"
-    in
-    let make_blocking_writer (_ : blocking) _ = assert false in
-    let make_nonblocking_writer (nb : non_blocking) _ =
-      let+ () =
-        match nb.write with
-        | Some ivar -> Fiber.Ivar.read ivar
-        | None ->
-            let ivar = Fiber.Ivar.create () in
-            nb.write <- Some ivar;
-            Fiber.Ivar.read ivar
-      in
-      nb.write <- None;
-      assert false
-    in
-    fun (t : output open_) ->
-      match t.buffer with
-      | Write (f, mvar) ->
-          let write =
-            match t.kind with
-            | Blocking b -> make_blocking_writer b
-            | Non_blocking nb -> make_nonblocking_writer nb
-          in
-          loop t f mvar write
+  let close t =
+    match !t with
+    | State.Closed -> ()
+    | Open o ->
+        Lev_fd.release o.fd;
+        t := Closed
 
-  let write (t : output t) =
-    let t = check_open t in
-    match t.buffer with Write (f, _) -> f
+  let rec write (t : output t) f =
+    let module Buffer = Stdlib.Buffer in
+    match Faraday.operation f with
+    | `Yield -> Fiber.return `Yield
+    | `Writev iovecs ->
+        let len =
+          List.fold_left iovecs ~init:0 ~f:(fun len (vec : _ Faraday.iovec) ->
+              len + vec.len)
+        in
+        let buf = Bytes.create len in
+        let (_ : int) =
+          List.fold_left iovecs ~init:0
+            ~f:(fun dst_off (vec : Bigstringaf.t Faraday.iovec) ->
+              Bigstringaf.blit_to_bytes vec.buffer buf ~src_off:vec.off ~dst_off
+                ~len:vec.len;
+              dst_off + vec.len)
+        in
+        try_write t f buf 0
+    | `Close ->
+        (* TODO actually close *)
+        Fiber.return `Close
 
-  let resume_write (t : output t) =
-    let t = check_open t in
-    match t.buffer with Write (_, mvar) -> Fiber.Mvar.write mvar ()
+  and try_write (t : output t) f buf = function
+    | 0 -> write t f
+    | pos -> (
+        (* TODO slow. need a proper write/writev *)
+        let lev_fd = (State.check_open t).fd in
+        let* () = Lev_fd.await lev_fd `Write in
+        let fd = Lev.Io.fd (State.check_open lev_fd).io in
+        match Unix.single_write fd buf pos (Bytes.length buf - pos) with
+        | exception Unix.Unix_error (Unix.EAGAIN, _, _) -> write t f
+        | written ->
+            (* TODO we should give control back to the user here *)
+            Faraday.shift f written;
+            try_write t f buf (pos + written))
 
   let flushed _ = assert false
-
-  let run (type a) (t : a t) =
-    let t = check_open t in
-    match t.buffer with Write _ -> run_write t | Read _ -> assert false
 
   module Slice = struct
     type t
@@ -423,14 +428,6 @@ module Io = struct
 
   let with_read _ = assert false
   let closed _ = assert false
-
-  let close t =
-    match !t with
-    | Closed -> ()
-    | Open o ->
-        Unix.close o.fd;
-        t := Closed
-
   let fd _ = assert false
   let pipe () = assert false
 end
