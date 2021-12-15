@@ -223,27 +223,27 @@ module Timer = struct
               in
               run t)
 
-    let stop t =
-      match !t with
-      | Stopped -> Fiber.return ()
-      | Running r -> (
-          t := Stopped;
-          let rec loop () =
-            match Removable_queue.pop r.queue with
+    let stop =
+      let rec cancel_all r =
+        match Removable_queue.pop r.queue with
+        | None -> Fiber.return ()
+        | Some task ->
+            let* () =
+              if task.filled then Fiber.return ()
+              else (
+                task.filled <- true;
+                Fiber.Ivar.fill task.ivar `Cancelled)
+            in
+            cancel_all r
+      in
+      fun t ->
+        match !t with
+        | Stopped -> Fiber.return ()
+        | Running r -> (
+            let* () = cancel_all r in
+            match r.waiting with
             | None -> Fiber.return ()
-            | Some task ->
-                let* () =
-                  if task.filled then Fiber.return ()
-                  else (
-                    task.filled <- true;
-                    Fiber.Ivar.fill task.ivar `Cancelled)
-                in
-                loop ()
-          in
-          let* () = loop () in
-          match r.waiting with
-          | None -> Fiber.return ()
-          | Some w -> Fiber.Ivar.fill w ())
+            | Some w -> Fiber.Ivar.fill w ())
   end
 end
 
