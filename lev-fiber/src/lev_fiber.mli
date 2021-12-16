@@ -83,7 +83,7 @@ module Io : sig
   val with_read : input t -> f:(reader -> 'a Fiber.t) -> 'a Fiber.t
   val closed : 'a t -> unit Fiber.t
   val close : 'a t -> unit
-  val pipe : unit -> input t * output t
+  val pipe : ?cloexec:bool -> unit -> (input t * output t) Fiber.t
 end
 
 module Socket : sig

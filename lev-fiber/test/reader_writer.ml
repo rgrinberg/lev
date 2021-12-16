@@ -4,7 +4,7 @@ open Lev_fiber
 
 let%expect_test "pipe" =
   let run () =
-    let input, output = Io.pipe () in
+    let* input, output = Io.pipe () in
     let write () =
       let f = Faraday.create 100 in
       Faraday.write_string f "foobar";
@@ -34,4 +34,29 @@ let%expect_test "pipe" =
     Fiber.fork_and_join_unit read write
   in
   Lev_fiber.run (Lev.Loop.create ()) ~f:run;
-  [%expect {||}]
+  [%expect.unreachable]
+  [@@expect.uncaught_exn
+    {|
+  (* CR expect_test_collector: This test expectation appears to contain a backtrace.
+     This is strongly discouraged as backtraces are fragile.
+     Please change this test to not include a backtrace. *)
+
+  "Assert_failure lev-fiber/src/lev_fiber.ml:428:20"
+  Raised at Lev_fiber.Io.with_read in file "lev-fiber/src/lev_fiber.ml", line 428, characters 20-32
+  Called from Lev_fiber_tests__Reader_writer.(fun).run.read in file "lev-fiber/test/reader_writer.ml", line 16, characters 8-611
+  Called from Fiber.Execution_context.apply in file "src/fiber/fiber.ml", line 196, characters 9-14
+  Re-raised at Stdune__Exn.raise_with_backtrace in file "otherlibs/stdune/exn.ml" (inlined), line 36, characters 27-56
+  Called from Stdune__Exn_with_backtrace.reraise in file "otherlibs/stdune/exn_with_backtrace.ml", line 18, characters 33-71
+  Called from Fiber.Execution_context.forward_error in file "src/fiber/fiber.ml" (inlined), line 146, characters 4-43
+  Called from Fiber.Execution_context.apply in file "src/fiber/fiber.ml", line 197, characters 13-30
+  Called from Fiber.fork_and_join_unit in file "src/fiber/fiber.ml", line 318, characters 2-177
+  Called from Fiber.Execution_context.apply in file "src/fiber/fiber.ml", line 196, characters 9-14
+  Re-raised at Stdune__Exn.raise_with_backtrace in file "otherlibs/stdune/exn.ml" (inlined), line 36, characters 27-56
+  Called from Stdune__Exn_with_backtrace.reraise in file "otherlibs/stdune/exn_with_backtrace.ml", line 18, characters 33-71
+  Called from Fiber.Execution_context.forward_error in file "src/fiber/fiber.ml" (inlined), line 146, characters 4-43
+  Called from Fiber.Execution_context.apply in file "src/fiber/fiber.ml", line 197, characters 13-30
+  Called from Fiber.Execution_context.run.(fun) in file "src/fiber/fiber.ml", line 269, characters 8-62
+  Called from Stdune__Exn.protectx in file "otherlibs/stdune/exn.ml", line 12, characters 8-11
+  Re-raised at Stdune__Exn.protectx in file "otherlibs/stdune/exn.ml", line 18, characters 4-11
+  Called from Lev_fiber_tests__Reader_writer.(fun) in file "lev-fiber/test/reader_writer.ml", line 36, characters 2-43
+  Called from Expect_test_collector.Make.Instance.exec in file "collector/expect_test_collector.ml", line 244, characters 12-19 |}]

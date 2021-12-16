@@ -429,6 +429,12 @@ module Io = struct
   let closed _ = assert false
   let fd _ = assert false
   let pipe () = assert false
+  let pipe ?cloexec () : (input t * output t) Fiber.t =
+    Fiber.of_thunk @@ fun () ->
+    let r, w = Unix.pipe ?cloexec () in
+    let* input = create r `Non_blocking Input in
+    let+ output = create w `Non_blocking Output in
+    (input, output)
 end
 
 module Socket = struct
