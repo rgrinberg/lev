@@ -304,14 +304,14 @@ module Lev_fd = struct
     match !nb with
     | Closed -> ()
     | Open nb -> (
-        (match Queue.pop nb.read with
-        | Some ivar when Lev.Io.Event.Set.mem set Read ->
-            Queue.push scheduler.queue (Fiber.Fill (ivar, ()))
-        | _ -> ());
-        match Queue.pop nb.write with
-        | Some ivar when Lev.Io.Event.Set.mem set Write ->
-            Queue.push scheduler.queue (Fiber.Fill (ivar, ()))
-        | _ -> ())
+        (if Lev.Io.Event.Set.mem set Read then
+         match Queue.pop nb.read with
+         | Some ivar -> Queue.push scheduler.queue (Fiber.Fill (ivar, ()))
+         | None -> ());
+        if Lev.Io.Event.Set.mem set Write then
+          match Queue.pop nb.write with
+          | Some ivar -> Queue.push scheduler.queue (Fiber.Fill (ivar, ()))
+          | None -> ())
 
   let create refs events fd : t Fiber.t =
     let+ scheduler = Fiber.Var.get_exn scheduler in
