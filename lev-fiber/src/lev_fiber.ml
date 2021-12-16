@@ -20,6 +20,8 @@ let scheduler = t
 module Buffer = struct
   include Bip_buffer
 
+  let default_size = 4096
+
   type t = Bigstringaf.t Bip_buffer.t
 
   let create ~size = create (Bigstringaf.create size) ~len:size
@@ -273,6 +275,10 @@ module Lev_fd = struct
 
   type t = state State.t
 
+  let fd t =
+    let t = State.check_open t in
+    Lev.Io.fd t.io
+
   let await t what =
     let t = State.check_open t in
     let ivar = Fiber.Ivar.create () in
@@ -340,12 +346,11 @@ module Io = struct
   type 'a t = 'a open_ State.t
 
   let create_gen (type a) fd (mode : a mode) =
-    let buffer_size = 4096 in
     let buffer : a buffer =
       match mode with
-      | Input -> Read (Buffer.create ~size:buffer_size)
+      | Input -> Read (Buffer.create ~size:Buffer.default_size)
       | Output ->
-          let faraday = Faraday.create buffer_size in
+          let faraday = Faraday.create Buffer.default_size in
           Write { faraday; yield = None }
     in
     State.create { buffer; fd }
@@ -412,26 +417,59 @@ module Io = struct
             Faraday.shift f written;
             try_write t f buf (pos + written))
 
-  module Slice = struct
-    type t
+  module Reader = struct
+    type t = input open_
 
-    let buffer _ = assert false
-    let consume _ = assert false
+    let buffer t =
+      let buf = match t.buffer with Read b -> b in
+      match Buffer.peek buf with
+      | None ->
+          (* we don't surface empty reads to the user *)
+          assert false
+      | Some { Buffer.Slice.pos; len } ->
+          let b = Buffer.buffer buf in
+          Bigstringaf.sub b ~off:pos ~len
+
+    let consume (t : t) ~len =
+      let buf = match t.buffer with Read b -> b in
+      Buffer.junk buf ~len
+
+    let available t =
+      let buf = match t.buffer with Read b -> b in
+      let eof = false in
+      let available = Buffer.length buf in
+      if available > 0 || not eof then `Ok available else `Eof
+
+    let refill ?(size = Buffer.default_size) t =
+      let buf = match t.buffer with Read b -> b in
+      match Buffer.reserve buf ~len:size with
+      | None -> (* TODO *) assert false
+      | Some dst_off -> (
+          let* () = Lev_fd.await t.fd `Read in
+          let b = Bytes.create size in
+          match Unix.read (Lev_fd.fd t.fd) b 0 size with
+          | exception Unix.Unix_error (Unix.EAGAIN, _, _) ->
+              (* TODO retry *) assert false
+          | exception Unix.Unix_error (Unix.EBADF, _, _) ->
+              (* TODO *) assert false
+          | len ->
+              Bigstringaf.blit_from_bytes b ~src_off:0 (Buffer.buffer buf)
+                ~dst_off ~len;
+              Buffer.commit buf ~len;
+              Fiber.return ())
   end
 
-  type reader
+  let with_read (t : input t) ~f =
+    let t = State.check_open t in
+    f t
 
-  let read ?max _ =
-    ignore max;
-    assert false
-
-  let with_read _ = assert false
   let closed _ = assert false
-  let fd _ = assert false
-  let pipe () = assert false
+
   let pipe ?cloexec () : (input t * output t) Fiber.t =
     Fiber.of_thunk @@ fun () ->
     let r, w = Unix.pipe ?cloexec () in
+    Unix.set_nonblock r;
+    Unix.set_nonblock w;
     let* input = create r `Non_blocking Input in
     let+ output = create w `Non_blocking Output in
     (input, output)

@@ -67,20 +67,18 @@ module Io : sig
     [ `Blocking | `Non_blocking ] ->
     (input t * output t) Fiber.t
 
-  val fd : 'a t -> Unix.file_descr
   val write : output t -> Faraday.t -> [ `Yield | `Close ] Fiber.t
 
-  module Slice : sig
+  module Reader : sig
     type t
 
+    val available : t -> [ `Ok of int | `Eof ]
     val buffer : t -> Bigstringaf.t
-    val consume : t -> int -> unit
+    val consume : t -> len:int -> unit
+    val refill : ?size:int -> t -> unit Fiber.t
   end
 
-  type reader
-
-  val read : ?max:int -> reader -> Slice.t option Fiber.t
-  val with_read : input t -> f:(reader -> 'a Fiber.t) -> 'a Fiber.t
+  val with_read : input t -> f:(Reader.t -> 'a Fiber.t) -> 'a Fiber.t
   val closed : 'a t -> unit Fiber.t
   val close : 'a t -> unit
   val pipe : ?cloexec:bool -> unit -> (input t * output t) Fiber.t

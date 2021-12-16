@@ -14,20 +14,23 @@ let%expect_test "pipe" =
     let read () =
       let+ () =
         Io.with_read input ~f:(fun reader ->
-            let rec loop buf =
-              let* read = Io.read reader in
-              match read with
-              | None ->
+            let buf = Stdlib.Buffer.create 12 in
+            let rec loop () =
+              match Io.Reader.available reader with
+              | `Eof ->
                   let contents = Stdlib.Buffer.contents buf in
                   printfn "reader: %s" contents;
                   Fiber.return ()
-              | Some slice ->
-                  let b = Io.Slice.buffer slice in
+              | `Ok 0 ->
+                  let* () = Io.Reader.refill reader in
+                  loop ()
+              | `Ok _ ->
+                  let b = Io.Reader.buffer reader in
                   Buffer.add_string buf (Bigstringaf.to_string b);
-                  Io.Slice.consume slice (Bigstringaf.length b);
-                  loop buf
+                  Io.Reader.consume reader ~len:(Bigstringaf.length b);
+                  loop ()
             in
-            loop (Buffer.create 15))
+            loop ())
       in
       Io.close input
     in
@@ -41,8 +44,9 @@ let%expect_test "pipe" =
      This is strongly discouraged as backtraces are fragile.
      Please change this test to not include a backtrace. *)
 
-  "Assert_failure lev-fiber/src/lev_fiber.ml:428:20"
-  Raised at Lev_fiber.Io.with_read in file "lev-fiber/src/lev_fiber.ml", line 428, characters 20-32
+  "Assert_failure lev-fiber/src/lev_fiber.ml:426:4"
+  Raised at Lev_fiber.Io.read in file "lev-fiber/src/lev_fiber.ml", line 426, characters 4-16
+  Called from Lev_fiber_tests__Reader_writer.(fun).run.read.(fun).loop in file "lev-fiber/test/reader_writer.ml", line 18, characters 26-40
   Called from Lev_fiber_tests__Reader_writer.(fun).run.read in file "lev-fiber/test/reader_writer.ml", line 16, characters 8-611
   Called from Fiber.Execution_context.apply in file "src/fiber/fiber.ml", line 196, characters 9-14
   Re-raised at Stdune__Exn.raise_with_backtrace in file "otherlibs/stdune/exn.ml" (inlined), line 36, characters 27-56
