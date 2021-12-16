@@ -337,7 +337,7 @@ module Io = struct
 
   type _ buffer =
     | Write : { faraday : Faraday.t } -> output buffer
-    | Read : { buf : Buffer.t; mutable eof : bool } -> input buffer
+    | Read : { mutable buf : Buffer.t; mutable eof : bool } -> input buffer
 
   type 'a open_ = { buffer : 'a buffer; fd : Lev_fd.t }
   type 'a t = 'a open_ State.t
@@ -397,24 +397,24 @@ module Io = struct
                 ~len:vec.len;
               dst_off + vec.len)
         in
-        try_write t f buf 0
-    | `Close ->
-        (* TODO actually close *)
-        Fiber.return `Close
+        try_write t f buf len 0
+    | `Close -> Fiber.return `Close
 
-  and try_write (t : output t) f buf = function
-    | 0 -> write t f
-    | pos -> (
-        (* TODO slow. need a proper write/writev *)
-        let lev_fd = (State.check_open t).fd in
-        let* () = Lev_fd.await lev_fd `Write in
-        let fd = Lev.Io.fd (State.check_open lev_fd).io in
-        match Unix.single_write fd buf pos (Bytes.length buf - pos) with
-        | exception Unix.Unix_error (Unix.EAGAIN, _, _) -> write t f
-        | written ->
-            (* TODO we should give control back to the user here *)
-            Faraday.shift f written;
-            try_write t f buf (pos + written))
+  and try_write (t : output t) f buf len pos =
+    if pos >= len then write t f
+    else
+      (* TODO slow. need a proper write/writev *)
+      let lev_fd = (State.check_open t).fd in
+      let* () = Lev_fd.await lev_fd `Write in
+      let fd = Lev.Io.fd (State.check_open lev_fd).io in
+      match Unix.single_write fd buf pos (Bytes.length buf - pos) with
+      | exception Unix.Unix_error (Unix.EAGAIN, _, _) ->
+          (* maybe we'll batch more this time? *)
+          write t f
+      | written ->
+          (* TODO we should give control back to the user here *)
+          Faraday.shift f written;
+          try_write t f buf len (pos + written)
 
   module Reader = struct
     type t = input open_
@@ -436,26 +436,45 @@ module Io = struct
     let available t =
       let buf, eof = match t.buffer with Read { buf; eof } -> (buf, eof) in
       let available = Buffer.length buf in
-      if available > 0 || not eof then `Ok available else `Eof
+      if available = 0 && eof then `Eof else `Ok available
 
-    let refill ?(size = Buffer.default_size) t =
-      let buf = match t.buffer with Read b -> b.buf in
-      match Buffer.reserve buf ~len:size with
-      | None -> (* TODO *) assert false
-      | Some dst_off -> (
-          let* () = Lev_fd.await t.fd `Read in
-          let b = Bytes.create size in
-          match Unix.read (Lev_fd.fd t.fd) b 0 size with
-          | exception Unix.Unix_error (Unix.EAGAIN, _, _) ->
-              (* TODO retry *) assert false
-          | exception Unix.Unix_error (Unix.EBADF, _, _) ->
-              (match t.buffer with Read b -> b.eof <- true);
-              Fiber.return ()
-          | len ->
-              Bigstringaf.blit_from_bytes b ~src_off:0 (Buffer.buffer buf)
-                ~dst_off ~len;
-              Buffer.commit buf ~len;
-              Fiber.return ())
+    let blit ~src ~src_pos ~dst ~dst_pos ~len =
+      Bigstringaf.blit src ~src_off:src_pos dst ~dst_off:dst_pos ~len
+
+    let refill =
+      let rec read t ~size ~dst_off =
+        let buf = match t.buffer with Read b -> b.buf in
+        let* () = Lev_fd.await t.fd `Read in
+        let b = Bytes.create size in
+        match Unix.read (Lev_fd.fd t.fd) b 0 size with
+        | exception Unix.Unix_error (Unix.EAGAIN, _, _) -> read t ~size ~dst_off
+        | 0 | (exception Unix.Unix_error (Unix.EBADF, _, _)) ->
+            (match t.buffer with Read b -> b.eof <- true);
+            Fiber.return ()
+        | len ->
+            Bigstringaf.blit_from_bytes b ~src_off:0 (Buffer.buffer buf)
+              ~dst_off ~len;
+            Buffer.commit buf ~len;
+            Fiber.return ()
+      in
+      let rec try_ t size reserve_fail =
+        let buf = match t.buffer with Read b -> b.buf in
+        match Buffer.reserve buf ~len:size with
+        | Some dst_off -> read t ~size ~dst_off
+        | None -> (
+            match reserve_fail with
+            | `Compress ->
+                if Buffer.compress_gain buf > size then Buffer.compress buf blit;
+                try_ t size `Resize
+            | `Resize ->
+                let len = Buffer.length buf + size in
+                let new_buf = Bigstringaf.create len in
+                let buf = Buffer.resize buf blit new_buf ~len in
+                (match t.buffer with Read b -> b.buf <- buf);
+                try_ t size `Fail
+            | `Fail -> assert false)
+      in
+      fun ?(size = Buffer.default_size) t -> try_ t size `Compress
   end
 
   let with_read (t : input t) ~f =
