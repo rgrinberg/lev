@@ -326,6 +326,7 @@ module Lev_fd = struct
            write = Queue.create ();
            refs;
          });
+    Lev.Io.start io scheduler.loop;
     Fdecl.get t
 end
 
