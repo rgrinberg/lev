@@ -335,12 +335,8 @@ module Io = struct
   type 'a mode = Input : input mode | Output : output mode
 
   type _ buffer =
-    | Write : {
-        faraday : Faraday.t;
-        mutable yield : unit Fiber.Ivar.t option;
-      }
-        -> output buffer
-    | Read : Buffer.t -> input buffer
+    | Write : { faraday : Faraday.t } -> output buffer
+    | Read : { buf : Buffer.t; mutable eof : bool } -> input buffer
 
   type 'a open_ = { buffer : 'a buffer; fd : Lev_fd.t }
   type 'a t = 'a open_ State.t
@@ -348,10 +344,12 @@ module Io = struct
   let create_gen (type a) fd (mode : a mode) =
     let buffer : a buffer =
       match mode with
-      | Input -> Read (Buffer.create ~size:Buffer.default_size)
+      | Input ->
+          let buf = Buffer.create ~size:Buffer.default_size in
+          Read { buf; eof = false }
       | Output ->
           let faraday = Faraday.create Buffer.default_size in
-          Write { faraday; yield = None }
+          Write { faraday }
     in
     State.create { buffer; fd }
 
@@ -421,7 +419,7 @@ module Io = struct
     type t = input open_
 
     let buffer t =
-      let buf = match t.buffer with Read b -> b in
+      let buf = match t.buffer with Read b -> b.buf in
       match Buffer.peek buf with
       | None ->
           (* we don't surface empty reads to the user *)
@@ -431,17 +429,16 @@ module Io = struct
           Bigstringaf.sub b ~off:pos ~len
 
     let consume (t : t) ~len =
-      let buf = match t.buffer with Read b -> b in
+      let buf = match t.buffer with Read b -> b.buf in
       Buffer.junk buf ~len
 
     let available t =
-      let buf = match t.buffer with Read b -> b in
-      let eof = false in
+      let buf, eof = match t.buffer with Read { buf; eof } -> (buf, eof) in
       let available = Buffer.length buf in
       if available > 0 || not eof then `Ok available else `Eof
 
     let refill ?(size = Buffer.default_size) t =
-      let buf = match t.buffer with Read b -> b in
+      let buf = match t.buffer with Read b -> b.buf in
       match Buffer.reserve buf ~len:size with
       | None -> (* TODO *) assert false
       | Some dst_off -> (
@@ -451,7 +448,8 @@ module Io = struct
           | exception Unix.Unix_error (Unix.EAGAIN, _, _) ->
               (* TODO retry *) assert false
           | exception Unix.Unix_error (Unix.EBADF, _, _) ->
-              (* TODO *) assert false
+              (match t.buffer with Read b -> b.eof <- true);
+              Fiber.return ()
           | len ->
               Bigstringaf.blit_from_bytes b ~src_off:0 (Buffer.buffer buf)
                 ~dst_off ~len;
