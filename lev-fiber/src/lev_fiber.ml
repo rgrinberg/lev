@@ -240,6 +240,7 @@ module Timer = struct
         match !t with
         | Stopped -> Fiber.return ()
         | Running r -> (
+            t := Stopped;
             let* () = cancel_all r in
             match r.waiting with
             | None -> Fiber.return ()
