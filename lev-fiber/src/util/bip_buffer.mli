@@ -23,7 +23,7 @@ val compress_gain : 'a t -> int
 
 val compress : 'a t -> ('a, 'a) Blit.t -> unit
 (** [compress t blit] will try to compress the buffer with 2 blit operations.
-    Use [compres_gain t] to asses how useful this will be. *)
+    Use [compress_gain t] to asses how useful this will be. *)
 
 val resize : 'a t -> ('a, 'b) Blit.t -> 'b -> len:int -> 'b t
 (** [resize t blit buf ~len] will create a new buffer with the same data. The
