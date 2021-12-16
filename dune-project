@@ -28,8 +28,11 @@
  (depends
   (ppx_expect :with-test)
   lev
+  dyn
   bigstringaf
+  bigarray-compat
   faraday
   fiber
   stdune
+  base-threads
   base-unix))
