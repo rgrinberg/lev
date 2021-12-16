@@ -461,8 +461,6 @@ module Io = struct
     let t = State.check_open t in
     f t
 
-  let closed _ = assert false
-
   let pipe ?cloexec () : (input t * output t) Fiber.t =
     Fiber.of_thunk @@ fun () ->
     let r, w = Unix.pipe ?cloexec () in
