@@ -336,6 +336,33 @@ module Io = struct
   type output = Output
   type 'a mode = Input : input mode | Output : output mode
 
+  external write_baf :
+    Unix.file_descr -> Bigstringaf.t -> pos:int -> len:int -> int
+    = "lev_fiber_unix_write"
+
+  external read_baf :
+    Unix.file_descr -> Bigstringaf.t -> pos:int -> len:int -> int
+    = "lev_fiber_unix_read"
+
+  let write_baf =
+    match Sys.win32 with
+    | false -> write_baf
+    | true ->
+        fun fd ba ~pos ~len ->
+          let b = Bytes.create len in
+          Bigstringaf.blit_to_bytes ba ~src_off:pos b ~dst_off:0 ~len;
+          Unix.single_write fd b 0 len
+
+  let read_baf =
+    match Sys.win32 with
+    | false -> read_baf
+    | true ->
+        fun fd ba ~pos ~len ->
+          let b = Bytes.create len in
+          let read_len = Unix.read fd b 0 len in
+          Bigstringaf.blit_from_bytes b ~src_off:0 ba ~dst_off:pos ~len:read_len;
+          read_len
+
   type _ buffer =
     | Write : { faraday : Faraday.t } -> output buffer
     | Read : { mutable buf : Buffer.t; mutable eof : bool } -> input buffer
@@ -391,11 +418,11 @@ module Io = struct
           List.fold_left iovecs ~init:0 ~f:(fun len (vec : _ Faraday.iovec) ->
               len + vec.len)
         in
-        let buf = Bytes.create len in
+        let buf = Bigstringaf.create len in
         let (_ : int) =
           List.fold_left iovecs ~init:0
             ~f:(fun dst_off (vec : Bigstringaf.t Faraday.iovec) ->
-              Bigstringaf.blit_to_bytes vec.buffer buf ~src_off:vec.off ~dst_off
+              Bigstringaf.blit vec.buffer buf ~src_off:vec.off ~dst_off
                 ~len:vec.len;
               dst_off + vec.len)
         in
@@ -408,7 +435,7 @@ module Io = struct
       let lev_fd = (State.check_open t).fd in
       let* () = Lev_fd.await lev_fd `Write in
       let fd = Lev.Io.fd (State.check_open lev_fd).io in
-      match Unix.single_write fd buf pos (Bytes.length buf - pos) with
+      match write_baf fd buf ~pos ~len:(Bigstringaf.length buf - pos) with
       | exception Unix.Unix_error (Unix.EAGAIN, _, _) ->
           (* maybe we'll batch more this time? *)
           write t f
@@ -446,16 +473,15 @@ module Io = struct
       let rec read t ~size ~dst_off =
         let buf = match t.buffer with Read b -> b.buf in
         let* () = Lev_fd.await t.fd `Read in
-        let b = Bytes.create size in
-        match Unix.read (Lev_fd.fd t.fd) b 0 size with
+        match
+          read_baf (Lev_fd.fd t.fd) (Buffer.buffer buf) ~pos:dst_off ~len:size
+        with
         | exception Unix.Unix_error (Unix.EAGAIN, _, _) -> read t ~size ~dst_off
         | 0 | (exception Unix.Unix_error (Unix.EBADF, _, _)) ->
             (match t.buffer with Read b -> b.eof <- true);
             Buffer.commit buf ~len:0;
             Fiber.return ()
         | len ->
-            Bigstringaf.blit_from_bytes b ~src_off:0 (Buffer.buffer buf)
-              ~dst_off ~len;
             Buffer.commit buf ~len;
             Fiber.return ()
       in

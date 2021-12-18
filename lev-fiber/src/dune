@@ -5,6 +5,9 @@
 (library
  (name lev_fiber)
  (public_name lev-fiber)
+ (foreign_stubs 
+  (language c)
+  (names lev_fiber_unix_stubs))
  (libraries
   unix
   dyn
