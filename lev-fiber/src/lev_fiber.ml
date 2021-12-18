@@ -292,7 +292,8 @@ module Lev_fd = struct
     if t.refs = 0 then (
       State.close t';
       Lev.Io.stop t.io t.scheduler.loop;
-      Unix.close (Lev.Io.fd t.io);
+      let fd = Lev.Io.fd t.io in
+      Unix.close fd;
       Lev.Io.destroy t.io)
 
   let _retain t' =
