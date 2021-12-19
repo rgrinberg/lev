@@ -22,9 +22,9 @@ module Buffer = struct
 
   let default_size = 4096
 
-  type t = Bigstringaf.t Bip_buffer.t
+  type t = Bytes.t Bip_buffer.t
 
-  let create ~size = create (Bigstringaf.create size) ~len:size
+  let create ~size : t = create (Bytes.create size) ~len:size
 end
 
 module State = struct
@@ -428,7 +428,7 @@ module Io = struct
           assert false
       | Some { Buffer.Slice.pos; len } ->
           let b = Buffer.buffer buf in
-          Bigstringaf.sub b ~off:pos ~len
+          Bytes.sub b ~pos ~len
 
     let consume (t : t) ~len =
       let buf = match t.buffer with Read b -> b.buf in
@@ -440,29 +440,28 @@ module Io = struct
       if available = 0 && eof then `Eof else `Ok available
 
     let blit ~src ~src_pos ~dst ~dst_pos ~len =
-      Bigstringaf.blit src ~src_off:src_pos dst ~dst_off:dst_pos ~len
+      Bytes.blit ~src ~src_pos ~dst ~dst_pos ~len
 
     let refill =
-      let rec read t ~size ~dst_off =
+      let rec read t ~size ~dst_pos =
         let buf = match t.buffer with Read b -> b.buf in
         let* () = Lev_fd.await t.fd `Read in
         let b = Bytes.create size in
         match Unix.read (Lev_fd.fd t.fd) b 0 size with
-        | exception Unix.Unix_error (Unix.EAGAIN, _, _) -> read t ~size ~dst_off
+        | exception Unix.Unix_error (Unix.EAGAIN, _, _) -> read t ~size ~dst_pos
         | 0 | (exception Unix.Unix_error (Unix.EBADF, _, _)) ->
             (match t.buffer with Read b -> b.eof <- true);
             Buffer.commit buf ~len:0;
             Fiber.return ()
         | len ->
-            Bigstringaf.blit_from_bytes b ~src_off:0 (Buffer.buffer buf)
-              ~dst_off ~len;
+            Bytes.blit ~src:b ~src_pos:0 ~dst:(Buffer.buffer buf) ~dst_pos ~len;
             Buffer.commit buf ~len;
             Fiber.return ()
       in
       let rec try_ t size reserve_fail =
         let buf = match t.buffer with Read b -> b.buf in
         match Buffer.reserve buf ~len:size with
-        | Some dst_off -> read t ~size ~dst_off
+        | Some dst_pos -> read t ~size ~dst_pos
         | None -> (
             match reserve_fail with
             | `Compress ->
@@ -470,7 +469,7 @@ module Io = struct
                 try_ t size `Resize
             | `Resize ->
                 let len = Buffer.length buf + size in
-                let new_buf = Bigstringaf.create len in
+                let new_buf = Bytes.create len in
                 let buf = Buffer.resize buf blit new_buf ~len in
                 (match t.buffer with Read b -> b.buf <- buf);
                 try_ t size `Fail

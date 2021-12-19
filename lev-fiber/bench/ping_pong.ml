@@ -16,7 +16,7 @@ let pong o times =
 let rec process_bytes buf pos len count =
   if pos >= len then count
   else
-    let c = Bigstringaf.get buf pos in
+    let c = Bytes.get buf pos in
     let count = if c = '\n' then count + 1 else count in
     process_bytes buf (pos + 1) len count
 
@@ -28,7 +28,7 @@ let rec read o reader =
       read o reader
   | `Ok _ ->
       let buf = Io.Reader.buffer reader in
-      let len = Bigstringaf.length buf in
+      let len = Bytes.length buf in
       let times = process_bytes buf 0 len 0 in
       Io.Reader.consume reader ~len;
       let* () = pong o times in

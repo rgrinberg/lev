@@ -73,7 +73,7 @@ module Io : sig
     type t
 
     val available : t -> [ `Ok of int | `Eof ]
-    val buffer : t -> Bigstringaf.t
+    val buffer : t -> Bytes.t
     val consume : t -> len:int -> unit
     val refill : ?size:int -> t -> unit Fiber.t
   end
