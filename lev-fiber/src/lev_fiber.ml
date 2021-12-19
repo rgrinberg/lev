@@ -417,6 +417,8 @@ module Io = struct
           Faraday.shift f written;
           try_write t f buf len (pos + written)
 
+  module Slice = Buffer.Slice
+
   module Reader = struct
     type t = input open_
 
@@ -428,7 +430,7 @@ module Io = struct
           assert false
       | Some { Buffer.Slice.pos; len } ->
           let b = Buffer.buffer buf in
-          Bytes.sub b ~pos ~len
+          (b, { Slice.pos; len })
 
     let consume (t : t) ~len =
       let buf = match t.buffer with Read b -> b.buf in

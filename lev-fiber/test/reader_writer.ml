@@ -27,9 +27,9 @@ let%expect_test "pipe" =
                   let* () = Io.Reader.refill reader in
                   loop ()
               | `Ok _ ->
-                  let b = Io.Reader.buffer reader in
-                  Buffer.add_string buf (Bigstringaf.to_string b);
-                  Io.Reader.consume reader ~len:(Bigstringaf.length b);
+                  let b, { Io.Slice.pos; len } = Io.Reader.buffer reader in
+                  Buffer.add_subbytes buf b pos len;
+                  Io.Reader.consume reader ~len;
                   loop ()
             in
             loop ())

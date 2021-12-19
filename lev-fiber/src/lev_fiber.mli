@@ -67,13 +67,17 @@ module Io : sig
     [ `Blocking | `Non_blocking ] ->
     (input t * output t) Fiber.t
 
+  module Slice : sig
+    type t = { pos : int; len : int }
+  end
+
   val write : output t -> Faraday.t -> [ `Yield | `Close ] Fiber.t
 
   module Reader : sig
     type t
 
     val available : t -> [ `Ok of int | `Eof ]
-    val buffer : t -> Bytes.t
+    val buffer : t -> Bytes.t * Slice.t
     val consume : t -> len:int -> unit
     val refill : ?size:int -> t -> unit Fiber.t
   end

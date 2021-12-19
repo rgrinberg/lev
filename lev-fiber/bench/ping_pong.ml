@@ -27,9 +27,8 @@ let rec read o reader =
       let* () = Io.Reader.refill reader in
       read o reader
   | `Ok _ ->
-      let buf = Io.Reader.buffer reader in
-      let len = Bytes.length buf in
-      let times = process_bytes buf 0 len 0 in
+      let buf, { Io.Slice.pos; len } = Io.Reader.buffer reader in
+      let times = process_bytes buf pos len 0 in
       Io.Reader.consume reader ~len;
       let* () = pong o times in
       read o reader
