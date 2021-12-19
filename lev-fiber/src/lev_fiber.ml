@@ -384,6 +384,7 @@ module Io = struct
     let module Buffer = Stdlib.Buffer in
     match Faraday.operation f with
     | `Yield -> Fiber.return `Yield
+    | `Close -> Fiber.return `Close
     | `Writev iovecs ->
         let len =
           List.fold_left iovecs ~init:0 ~f:(fun len (vec : _ Faraday.iovec) ->
@@ -398,7 +399,6 @@ module Io = struct
               dst_off + vec.len)
         in
         try_write t f buf len 0
-    | `Close -> Fiber.return `Close
 
   and try_write (t : output t) f buf len pos =
     if pos >= len then write t f
@@ -450,6 +450,7 @@ module Io = struct
         | exception Unix.Unix_error (Unix.EAGAIN, _, _) -> read t ~size ~dst_off
         | 0 | (exception Unix.Unix_error (Unix.EBADF, _, _)) ->
             (match t.buffer with Read b -> b.eof <- true);
+            Buffer.commit buf ~len:0;
             Fiber.return ()
         | len ->
             Bigstringaf.blit_from_bytes b ~src_off:0 (Buffer.buffer buf)
