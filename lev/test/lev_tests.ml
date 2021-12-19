@@ -110,7 +110,7 @@ let%expect_test "cleanup callbacks" =
   Cleanup.start cleanup loop;
   ignore (Loop.run loop Nowait);
   Loop.destroy loop;
-  [%expect {| |}]
+  [%expect {| cleanup |}]
 
 let%expect_test "child" =
   let loop = Loop.default () in
@@ -175,8 +175,9 @@ let%expect_test "check/idle/prepare" =
   |> List.iter ~f:(fun f -> f loop);
   ignore (Loop.run loop Once);
   [%expect {|
+    prepare
     check
-    prepare |}]
+    idle |}]
 
 let%expect_test "async" =
   let loop = Loop.create () in
@@ -193,7 +194,8 @@ let%expect_test "async" =
   [%expect {|
     firing async
     async fired
-    firing async |}]
+    firing async
+    async fired |}]
 
 let%expect_test "is_pending/is_active" =
   let loop = Loop.create () in
@@ -247,6 +249,7 @@ let%expect_test "timer - stops automatically" =
   Timer.start timer loop;
   Loop.run_until_done loop;
   [%expect {|
+    timer fired
     timer fired |}]
 
 let%expect_test "timer/again cancels start" =
