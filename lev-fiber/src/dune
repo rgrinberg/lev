@@ -11,8 +11,5 @@
   stdune
   threads.posix
   fiber
-  bigarray-compat
-  bigstringaf
-  faraday
   lev
   util))

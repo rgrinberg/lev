@@ -336,24 +336,60 @@ module Io = struct
   type output = Output
   type 'a mode = Input : input mode | Output : output mode
 
-  type _ buffer =
-    | Write : { faraday : Faraday.t } -> output buffer
-    | Read : { mutable buf : Buffer.t; mutable eof : bool } -> input buffer
+  module Slice = Buffer.Slice
 
-  type 'a open_ = { buffer : 'a buffer; fd : Lev_fd.t }
+  type _ kind =
+    | Write : Fiber.Mutex.t -> output kind
+    | Read : { mutable eof : bool } -> input kind
+
+  type 'a open_ = { mutable buffer : Buffer.t; kind : 'a kind; fd : Lev_fd.t }
   type 'a t = 'a open_ State.t
 
+  module Writer = struct
+    type nonrec t = output open_
+    type transaction = t * Slice.t
+
+    let available t =
+      Buffer.available
+    let commit (t, _) ~len = Buffer.commit t.buffer ~len
+
+    let buffer (t, slice) =
+      let buf = Buffer.buffer t.buffer in
+      (buf, slice)
+
+    let with_transaction (t : t) ~max ~f =
+      let mutex = match t.kind with Write mutex -> mutex in
+      Fiber.Mutex.with_lock mutex (fun () ->
+          match Buffer.reserve t.buffer ~len:max with
+          | None -> assert false (* TODO *)
+          | Some pos ->
+              let slice = { Slice.pos; len = max } in
+              f (t, slice);
+              Fiber.return ())
+
+    let rec flush (t : t) =
+      match Buffer.peek t.buffer with
+      | None -> Fiber.return ()
+      | Some { Slice.pos; len } -> (
+          let lev_fd = t.fd in
+          let* () = Lev_fd.await lev_fd `Write in
+          let fd = Lev.Io.fd (State.check_open lev_fd).io in
+          let buffer = Buffer.buffer t.buffer in
+          match Unix.single_write fd buffer pos len with
+          | exception Unix.Unix_error (Unix.EAGAIN, _, _) -> flush t
+          | len ->
+              Buffer.junk t.buffer ~len;
+              flush t)
+  end
+
   let create_gen (type a) fd (mode : a mode) =
-    let buffer : a buffer =
+    let buffer = Buffer.create ~size:Buffer.default_size in
+    let kind : a kind =
       match mode with
-      | Input ->
-          let buf = Buffer.create ~size:Buffer.default_size in
-          Read { buf; eof = false }
-      | Output ->
-          let faraday = Faraday.create Buffer.default_size in
-          Write { faraday }
+      | Input -> Read { eof = false }
+      | Output -> Write (Fiber.Mutex.create ())
     in
-    State.create { buffer; fd }
+    State.create { buffer; fd; kind }
 
   let create (type a) fd _nb (mode : a mode) =
     let+ fd =
@@ -381,64 +417,23 @@ module Io = struct
         Lev_fd.release o.fd;
         t := Closed
 
-  let rec write (t : output t) f =
-    let module Buffer = Stdlib.Buffer in
-    match Faraday.operation f with
-    | `Yield -> Fiber.return `Yield
-    | `Close -> Fiber.return `Close
-    | `Writev iovecs ->
-        let len =
-          List.fold_left iovecs ~init:0 ~f:(fun len (vec : _ Faraday.iovec) ->
-              len + vec.len)
-        in
-        let buf = Bytes.create len in
-        let (_ : int) =
-          List.fold_left iovecs ~init:0
-            ~f:(fun dst_off (vec : Bigstringaf.t Faraday.iovec) ->
-              Bigstringaf.blit_to_bytes vec.buffer buf ~src_off:vec.off ~dst_off
-                ~len:vec.len;
-              dst_off + vec.len)
-        in
-        try_write t f buf len 0
-
-  and try_write (t : output t) f buf len pos =
-    if pos >= len then write t f
-    else
-      (* TODO slow. need a proper write/writev *)
-      let lev_fd = (State.check_open t).fd in
-      let* () = Lev_fd.await lev_fd `Write in
-      let fd = Lev.Io.fd (State.check_open lev_fd).io in
-      match Unix.single_write fd buf pos (Bytes.length buf - pos) with
-      | exception Unix.Unix_error (Unix.EAGAIN, _, _) ->
-          (* maybe we'll batch more this time? *)
-          write t f
-      | written ->
-          (* TODO we should give control back to the user here *)
-          Faraday.shift f written;
-          try_write t f buf len (pos + written)
-
-  module Slice = Buffer.Slice
-
   module Reader = struct
     type t = input open_
 
     let buffer t =
-      let buf = match t.buffer with Read b -> b.buf in
-      match Buffer.peek buf with
+      match Buffer.peek t.buffer with
       | None ->
           (* we don't surface empty reads to the user *)
           assert false
       | Some { Buffer.Slice.pos; len } ->
-          let b = Buffer.buffer buf in
+          let b = Buffer.buffer t.buffer in
           (b, { Slice.pos; len })
 
-    let consume (t : t) ~len =
-      let buf = match t.buffer with Read b -> b.buf in
-      Buffer.junk buf ~len
+    let consume (t : t) ~len = Buffer.junk t.buffer ~len
 
     let available t =
-      let buf, eof = match t.buffer with Read { buf; eof } -> (buf, eof) in
-      let available = Buffer.length buf in
+      let eof = match t.kind with Read { eof } -> eof in
+      let available = Buffer.length t.buffer in
       if available = 0 && eof then `Eof else `Ok available
 
     let blit ~src ~src_pos ~dst ~dst_pos ~len =
@@ -446,34 +441,34 @@ module Io = struct
 
     let refill =
       let rec read t ~size ~dst_pos =
-        let buf = match t.buffer with Read b -> b.buf in
         let* () = Lev_fd.await t.fd `Read in
         let b = Bytes.create size in
         match Unix.read (Lev_fd.fd t.fd) b 0 size with
         | exception Unix.Unix_error (Unix.EAGAIN, _, _) -> read t ~size ~dst_pos
         | 0 | (exception Unix.Unix_error (Unix.EBADF, _, _)) ->
-            (match t.buffer with Read b -> b.eof <- true);
-            Buffer.commit buf ~len:0;
+            (match t.kind with Read b -> b.eof <- true);
+            Buffer.commit t.buffer ~len:0;
             Fiber.return ()
         | len ->
-            Bytes.blit ~src:b ~src_pos:0 ~dst:(Buffer.buffer buf) ~dst_pos ~len;
-            Buffer.commit buf ~len;
+            Bytes.blit ~src:b ~src_pos:0 ~dst:(Buffer.buffer t.buffer) ~dst_pos
+              ~len;
+            Buffer.commit t.buffer ~len;
             Fiber.return ()
       in
       let rec try_ t size reserve_fail =
-        let buf = match t.buffer with Read b -> b.buf in
-        match Buffer.reserve buf ~len:size with
+        match Buffer.reserve t.buffer ~len:size with
         | Some dst_pos -> read t ~size ~dst_pos
         | None -> (
             match reserve_fail with
             | `Compress ->
-                if Buffer.compress_gain buf > size then Buffer.compress buf blit;
+                if Buffer.compress_gain t.buffer > size then
+                  Buffer.compress t.buffer blit;
                 try_ t size `Resize
             | `Resize ->
-                let len = Buffer.length buf + size in
+                let len = Buffer.length t.buffer + size in
                 let new_buf = Bytes.create len in
-                let buf = Buffer.resize buf blit new_buf ~len in
-                (match t.buffer with Read b -> b.buf <- buf);
+                let buf = Buffer.resize t.buffer blit new_buf ~len in
+                t.buffer <- buf;
                 try_ t size `Fail
             | `Fail -> assert false)
       in
@@ -481,6 +476,10 @@ module Io = struct
   end
 
   let with_read (t : input t) ~f =
+    let t = State.check_open t in
+    f t
+
+  let with_write (t : output t) ~f =
     let t = State.check_open t in
     f t
 

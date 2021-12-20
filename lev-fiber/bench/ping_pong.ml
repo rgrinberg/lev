@@ -5,13 +5,23 @@ open Lev_fiber
 let response = Bytes.of_string "+PONG\r\n"
 
 let pong o times =
-  let f = Faraday.create (Bytes.length response) in
-  for _ = 1 to times do
-    Faraday.write_bytes f response
-  done;
-  Faraday.close f;
-  let+ w = Io.write o f in
-  match w with `Yield -> assert false | `Close -> ()
+  Io.with_write o ~f:(fun writer ->
+      let len = Bytes.length response * times in
+      let* () =
+        Io.Writer.with_transaction writer ~max:len ~f:(fun txn ->
+            let dst, { Io.Slice.pos; len = _ } = Io.Writer.buffer txn in
+            let pos = ref pos in
+            let () =
+              let len = Bytes.length response in
+              for _ = 1 to times do
+                let dst_pos = !pos in
+                Bytes.blit ~src:response ~src_pos:0 ~len ~dst ~dst_pos;
+                pos := !pos + len
+              done
+            in
+            Io.Writer.commit txn ~len)
+      in
+      Io.Writer.flush writer)
 
 let rec process_bytes buf pos len count =
   if pos >= len then count

@@ -55,6 +55,7 @@ let junk t ~len:size =
 
 let space_left_for_a t = t.buf_len - t.a_end
 let space_left_for_b t = t.a_start - t.b_end
+let available t = if t.b_inuse then space_left_for_b t else space_left_for_a t
 
 let reserve t ~len:size =
   if t.reserving then Code_error.raise "previous reserve not committed" [];

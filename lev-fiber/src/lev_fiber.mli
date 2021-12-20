@@ -71,8 +71,6 @@ module Io : sig
     type t = { pos : int; len : int }
   end
 
-  val write : output t -> Faraday.t -> [ `Yield | `Close ] Fiber.t
-
   module Reader : sig
     type t
 
@@ -82,7 +80,23 @@ module Io : sig
     val refill : ?size:int -> t -> unit Fiber.t
   end
 
+  module Writer : sig
+    type t
+    type transaction
+
+    (* max size we can allocate for a transaction without resizing *)
+    val available : t -> int
+    val buffer : transaction -> Bytes.t * Slice.t
+    val commit : transaction -> len:int -> unit
+
+    val with_transaction :
+      t -> max:int -> f:(transaction -> unit) -> unit Fiber.t
+
+    val flush : t -> unit Fiber.t
+  end
+
   val with_read : input t -> f:(Reader.t -> 'a Fiber.t) -> 'a Fiber.t
+  val with_write : output t -> f:(Writer.t -> 'a Fiber.t) -> 'a Fiber.t
   val close : 'a t -> unit
   val pipe : ?cloexec:bool -> unit -> (input t * output t) Fiber.t
 end

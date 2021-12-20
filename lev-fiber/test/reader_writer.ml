@@ -6,12 +6,20 @@ let%expect_test "pipe" =
   let run () =
     let* input, output = Io.pipe ~cloexec:true () in
     let write () =
-      let f = Faraday.create 100 in
-      Faraday.write_string f "foobar";
-      Faraday.close f;
-      let+ res = Io.write output f in
-      printfn "writer: finished";
-      match res with `Yield -> assert false | `Close -> Io.close output
+      let+ () =
+        Io.with_write output ~f:(fun writer ->
+            let str = "foobar" in
+            let len = String.length str in
+            let* () =
+              Io.Writer.with_transaction writer ~max:len ~f:(fun txn ->
+                  let dst, { Io.Slice.pos; len = _ } = Io.Writer.buffer txn in
+                  Bytes.blit_string ~src:str ~src_pos:0 ~dst ~dst_pos:pos ~len;
+                  Io.Writer.commit txn ~len)
+            in
+            Io.Writer.flush writer)
+      in
+      Io.close output;
+      printfn "writer: finished"
     in
     let read () =
       let+ () =
