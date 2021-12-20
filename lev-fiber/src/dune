@@ -5,11 +5,4 @@
 (library
  (name lev_fiber)
  (public_name lev-fiber)
- (libraries
-  unix
-  dyn
-  stdune
-  threads.posix
-  fiber
-  lev
-  util))
+ (libraries unix dyn stdune threads.posix fiber lev util))

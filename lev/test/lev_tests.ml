@@ -191,7 +191,8 @@ let%expect_test "async" =
   Async.start async loop;
   ignore (Loop.run loop Nowait);
   ignore (Loop.run loop Nowait);
-  [%expect {|
+  [%expect
+    {|
     firing async
     async fired
     firing async

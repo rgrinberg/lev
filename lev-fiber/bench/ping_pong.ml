@@ -2,6 +2,10 @@ open! Stdune
 open Fiber.O
 open Lev_fiber
 
+let () =
+  let current = Gc.get () in
+  Gc.set { current with max_overhead = 1000000; allocation_policy = 1 }
+
 let response = Bytes.of_string "+PONG\r\n"
 
 let pong o times =

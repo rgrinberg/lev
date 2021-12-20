@@ -11,6 +11,7 @@ end
 
 type 'a t
 
+val available : _ t -> int
 val is_empty : 'a t -> bool
 val length : 'a t -> int
 val buffer : 'a t -> 'a

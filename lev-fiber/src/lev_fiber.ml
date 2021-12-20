@@ -349,8 +349,7 @@ module Io = struct
     type nonrec t = output open_
     type transaction = t * Slice.t
 
-    let available t =
-      Buffer.available
+    let available t = Buffer.available t.buffer
     let commit (t, _) ~len = Buffer.commit t.buffer ~len
 
     let buffer (t, slice) =
