@@ -484,25 +484,28 @@ module Io = struct
 end
 
 module Socket = struct
+  let writeable_fd scheduler fd =
+    let ivar = Fiber.Ivar.create () in
+    let io =
+      Lev.Io.create
+        (fun io _ _ ->
+          Queue.push scheduler.queue (Fiber.Fill (ivar, ()));
+          Lev.Io.stop io scheduler.loop;
+          Lev.Io.destroy io)
+        fd
+        (Lev.Io.Event.Set.create ~write:true ())
+    in
+    Lev.Io.start io scheduler.loop;
+    Fiber.Ivar.read ivar
+
   let connect fd sock =
-    (* TODO windoze *)
     let* scheduler = Fiber.Var.get_exn scheduler in
     Unix.set_nonblock fd;
-    let ivar = Fiber.Ivar.create () in
     match Unix.connect fd sock with
     | () -> Fiber.return ()
+    | exception Unix.Unix_error (Unix.EISCONN, _, _) -> Fiber.return ()
     | exception Unix.Unix_error (Unix.EINPROGRESS, _, _) -> (
-        let io =
-          Lev.Io.create
-            (fun io _ _ ->
-              Queue.push scheduler.queue (Fiber.Fill (ivar, ()));
-              Lev.Io.stop io scheduler.loop;
-              Lev.Io.destroy io)
-            fd
-            (Lev.Io.Event.Set.create ~write:true ())
-        in
-        Lev.Io.start io scheduler.loop;
-        let+ () = Fiber.Ivar.read ivar in
+        let+ () = writeable_fd scheduler fd in
         match Unix.getsockopt_error fd with
         | None -> ()
         | Some err -> raise (Unix.Unix_error (err, "connect", "")))
