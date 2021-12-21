@@ -264,47 +264,61 @@ let waitpid ~pid =
   Lev.Child.start child loop;
   Fiber.Ivar.read ivar
 
+module Rc : sig
+  type 'a t
+
+  val get : 'a t -> 'a option
+  val get_exn : 'a t -> 'a
+  val release : _ t -> unit
+  val create : count:int -> finalize:(unit -> unit) -> 'a -> 'a t
+end = struct
+  type 'a state = { data : 'a; mutable count : int; finalize : unit -> unit }
+  type 'a t = 'a state State.t
+
+  let get t = match !t with State.Closed -> None | Open a -> Some a.data
+  let get_exn t = Option.value_exn (get t)
+  let create ~count ~finalize data = State.create { count; finalize; data }
+
+  let _retain t =
+    let t = State.check_open t in
+    t.count <- t.count + 1
+
+  let release (t : _ t) =
+    match !t with
+    | Closed -> ()
+    | Open a ->
+        a.count <- a.count - 1;
+        if a.count = 0 then (
+          State.close t;
+          a.finalize ())
+end
+
 module Lev_fd = struct
-  type state = {
+  type t = {
     io : Lev.Io.t;
     scheduler : scheduler;
     read : unit Fiber.Ivar.t Queue.t;
     write : unit Fiber.Ivar.t Queue.t;
-    mutable refs : int;
   }
 
-  type t = state State.t
+  let fd t = Lev.Io.fd t.io
 
-  let fd t =
-    let t = State.check_open t in
-    Lev.Io.fd t.io
-
-  let await t what =
-    let t = State.check_open t in
+  let await t (what : Lev.Io.Event.t) =
     let ivar = Fiber.Ivar.create () in
-    let q = match what with `Write -> t.write | `Read -> t.read in
+    let q = match what with Write -> t.write | Read -> t.read in
     Queue.push q ivar;
     Fiber.Ivar.read ivar
 
-  let release t' =
-    let t = State.check_open t' in
-    t.refs <- t.refs - 1;
-    if t.refs = 0 then (
-      State.close t';
-      Lev.Io.stop t.io t.scheduler.loop;
-      let fd = Lev.Io.fd t.io in
-      Unix.close fd;
-      Lev.Io.destroy t.io)
-
-  let _retain t' =
-    let t = State.check_open t' in
-    t.refs <- t.refs + 1
+  let make_finalizer loop io () =
+    Lev.Io.stop io loop;
+    let fd = Lev.Io.fd io in
+    Unix.close fd;
+    Lev.Io.destroy io
 
   let make_cb t scheduler _ _ set =
-    let (nb : t) = Fdecl.get t in
-    match !nb with
-    | Closed -> ()
-    | Open nb -> (
+    match Rc.get (Fdecl.get t) with
+    | None -> ()
+    | Some nb -> (
         (if Lev.Io.Event.Set.mem set Read then
          match Queue.pop nb.read with
          | Some ivar -> Queue.push scheduler.queue (Fiber.Fill (ivar, ()))
@@ -314,19 +328,15 @@ module Lev_fd = struct
           | Some ivar -> Queue.push scheduler.queue (Fiber.Fill (ivar, ()))
           | None -> ())
 
-  let create refs events fd : t Fiber.t =
+  let create ~ref_count events fd : t Rc.t Fiber.t =
     let+ scheduler = Fiber.Var.get_exn scheduler in
-    let t = Fdecl.create Dyn.opaque in
+    let t : t Rc.t Fdecl.t = Fdecl.create Dyn.opaque in
     let io = Lev.Io.create (make_cb t scheduler) fd events in
     Fdecl.set t
-      (State.create
-         {
-           scheduler;
-           io;
-           read = Queue.create ();
-           write = Queue.create ();
-           refs;
-         });
+      (Rc.create
+         ~finalize:(make_finalizer scheduler.loop io)
+         ~count:ref_count
+         { scheduler; io; read = Queue.create (); write = Queue.create () });
     Lev.Io.start io scheduler.loop;
     Fdecl.get t
 end
@@ -342,7 +352,35 @@ module Io = struct
     | Write : output kind
     | Read : { mutable eof : bool } -> input kind
 
-  type 'a open_ = { mutable buffer : Buffer.t; kind : 'a kind; fd : Lev_fd.t }
+  module Fd = struct
+    type t =
+      | Blocking of Thread.t * Unix.file_descr Rc.t
+      | Non_blocking of Lev_fd.t Rc.t
+
+    let with_ t (kind : Lev.Io.Event.t) ~f =
+      match t with
+      | Non_blocking lev_fd ->
+          let lev_fd = Rc.get_exn lev_fd in
+          let+ () = Lev_fd.await lev_fd kind in
+          Result.try_with (fun () -> f (Lev_fd.fd lev_fd))
+      | Blocking (th, fd) -> (
+          let fd = Rc.get_exn fd in
+          let* task = Thread.task th ~f:(fun () -> f fd) in
+          let+ res = Thread.await task in
+          match res with
+          | Ok _ as s -> s
+          | Error `Cancelled -> assert false
+          | Error (`Exn exn) -> Error exn.exn)
+
+    let release t =
+      match t with
+      | Non_blocking fd -> Rc.release fd
+      | Blocking (th, fd) ->
+          Thread.close th;
+          Rc.release fd
+  end
+
+  type 'a open_ = { mutable buffer : Buffer.t; kind : 'a kind; fd : Fd.t }
   type 'a t = 'a open_ State.t
 
   let blit ~src ~src_pos ~dst ~dst_pos ~len =
@@ -381,13 +419,15 @@ module Io = struct
       match Buffer.peek t.buffer with
       | None -> Fiber.return ()
       | Some { Slice.pos; len } -> (
-          let lev_fd = t.fd in
-          let* () = Lev_fd.await lev_fd `Write in
-          let fd = Lev.Io.fd (State.check_open lev_fd).io in
           let buffer = Buffer.buffer t.buffer in
-          match Unix.single_write fd buffer pos len with
-          | exception Unix.Unix_error (Unix.EAGAIN, _, _) -> flush t
-          | len ->
+          let* res =
+            Fd.with_ t.fd Write ~f:(fun fd ->
+                Unix.single_write fd buffer pos len)
+          in
+          match res with
+          | Error (Unix.Unix_error (Unix.EAGAIN, _, _)) -> flush t
+          | Error exn -> reraise exn
+          | Ok len ->
               Buffer.junk t.buffer ~len;
               flush t)
   end
@@ -399,30 +439,50 @@ module Io = struct
     in
     State.create { buffer; fd; kind }
 
-  let create (type a) fd _nb (mode : a mode) =
-    let+ fd =
-      let read, write =
-        match mode with Input -> (true, false) | Output -> (false, true)
-      in
-      let set = Lev.Io.Event.Set.create ~read ~write () in
-      Lev_fd.create 1 set fd
-    in
-    create_gen fd mode
+  let create (type a) fd blockity (mode : a mode) =
+    match blockity with
+    | `Non_blocking ->
+        let+ fd =
+          let read, write =
+            match mode with Input -> (true, false) | Output -> (false, true)
+          in
+          let set = Lev.Io.Event.Set.create ~read ~write () in
+          Lev_fd.create ~ref_count:1 set fd
+        in
+        create_gen (Fd.Non_blocking fd) mode
+    | `Blocking ->
+        let+ thread = Thread.create () in
+        let fd = Rc.create ~count:1 ~finalize:(fun () -> Unix.close fd) fd in
+        create_gen (Fd.Blocking (thread, fd)) mode
 
-  let create_rw fd _ : (input t * output t) Fiber.t =
-    let+ fd =
-      let set = Lev.Io.Event.Set.create ~read:true ~write:true () in
-      Lev_fd.create 2 set fd
-    in
-    let r = create_gen fd Input in
-    let w = create_gen fd Output in
-    (r, w)
+  let create_rw fd blockity : (input t * output t) Fiber.t =
+    match blockity with
+    | `Non_blocking ->
+        let+ fd =
+          let set = Lev.Io.Event.Set.create ~read:true ~write:true () in
+          let+ fd = Lev_fd.create ~ref_count:2 set fd in
+          Fd.Non_blocking fd
+        in
+        let r = create_gen fd Input in
+        let w = create_gen fd Output in
+        (r, w)
+    | `Blocking ->
+        let fd = Rc.create ~count:2 ~finalize:(fun () -> Unix.close fd) fd in
+        let* r =
+          let+ thread = Thread.create () in
+          create_gen (Fd.Blocking (thread, fd)) Input
+        in
+        let+ w =
+          let+ thread = Thread.create () in
+          create_gen (Fd.Blocking (thread, fd)) Output
+        in
+        (r, w)
 
   let close t =
     match !t with
     | State.Closed -> ()
     | Open o ->
-        Lev_fd.release o.fd;
+        Fd.release o.fd;
         t := Closed
 
   module Reader = struct
@@ -446,19 +506,20 @@ module Io = struct
 
     let refill =
       let rec read t ~size ~dst_pos =
-        let* () = Lev_fd.await t.fd `Read in
         let b = Bytes.create size in
-        match Unix.read (Lev_fd.fd t.fd) b 0 size with
-        | exception Unix.Unix_error (Unix.EAGAIN, _, _) -> read t ~size ~dst_pos
-        | 0 | (exception Unix.Unix_error (Unix.EBADF, _, _)) ->
+        let* res = Fd.with_ t.fd Read ~f:(fun fd -> Unix.read fd b 0 size) in
+        match res with
+        | Error (Unix.Unix_error (Unix.EAGAIN, _, _)) -> read t ~size ~dst_pos
+        | Ok 0 | Error (Unix.Unix_error (Unix.EBADF, _, _)) ->
             (match t.kind with Read b -> b.eof <- true);
             Buffer.commit t.buffer ~len:0;
             Fiber.return ()
-        | len ->
+        | Ok len ->
             Bytes.blit ~src:b ~src_pos:0 ~dst:(Buffer.buffer t.buffer) ~dst_pos
               ~len;
             Buffer.commit t.buffer ~len;
             Fiber.return ()
+        | Error exn -> reraise exn
       in
       let rec try_ t size reserve_fail =
         match Buffer.reserve t.buffer ~len:size with
@@ -488,14 +549,16 @@ module Io = struct
     let t = State.check_open t in
     f t
 
-  let pipe ?cloexec () : (input t * output t) Fiber.t =
-    Fiber.of_thunk @@ fun () ->
-    let r, w = Unix.pipe ?cloexec () in
-    Unix.set_nonblock r;
-    Unix.set_nonblock w;
-    let* input = create r `Non_blocking Input in
-    let+ output = create w `Non_blocking Output in
-    (input, output)
+  let pipe =
+    let blockity = if Sys.win32 then `Blocking else `Non_blocking in
+    fun ?cloexec () : (input t * output t) Fiber.t ->
+      Fiber.of_thunk @@ fun () ->
+      let r, w = Unix.pipe ?cloexec () in
+      Unix.set_nonblock r;
+      Unix.set_nonblock w;
+      let* input = create r blockity Input in
+      let+ output = create w blockity Output in
+      (input, output)
 end
 
 module Socket = struct
