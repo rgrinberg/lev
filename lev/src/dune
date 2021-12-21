@@ -9,4 +9,12 @@
  (foreign_stubs
   (language c)
   (flags :standard -libm)
+  (extra_deps
+   ev_kqueue.c
+   ev_epoll.c
+   ev_iouring.c
+   ev_poll.c
+   ev_port.c
+   ev_select.c
+   ev_win32.c)
   (names lev_stubs ev)))
