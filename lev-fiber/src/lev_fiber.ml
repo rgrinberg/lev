@@ -345,17 +345,35 @@ module Io = struct
   type 'a open_ = { mutable buffer : Buffer.t; kind : 'a kind; fd : Lev_fd.t }
   type 'a t = 'a open_ State.t
 
+  let blit ~src ~src_pos ~dst ~dst_pos ~len =
+    Bytes.blit ~src ~src_pos ~dst ~dst_pos ~len
+
   module Writer = struct
     type nonrec t = output open_
 
     let available t = Buffer.available t.buffer
 
-    let prepare t ~len =
-      match Buffer.reserve t.buffer ~len with
-      | None -> assert false
-      | Some pos ->
-          let buf = Buffer.buffer t.buffer in
-          (buf, { Slice.pos; len })
+    let prepare =
+      let rec try_ t ~len reserve_fail =
+        match Buffer.reserve t.buffer ~len with
+        | Some pos ->
+            let buf = Buffer.buffer t.buffer in
+            (buf, { Slice.pos; len })
+        | None -> (
+            match reserve_fail with
+            | `Compress ->
+                if Buffer.compress_gain t.buffer > len then
+                  Buffer.compress t.buffer blit;
+                try_ t ~len `Resize
+            | `Resize ->
+                let len = Buffer.length t.buffer + len in
+                let new_buf = Bytes.create len in
+                let buf = Buffer.resize t.buffer blit new_buf ~len in
+                t.buffer <- buf;
+                try_ t ~len `Fail
+            | `Fail -> assert false)
+      in
+      fun t ~len -> try_ t ~len `Compress
 
     let commit t ~len = Buffer.commit t.buffer ~len
 
@@ -425,9 +443,6 @@ module Io = struct
       let eof = match t.kind with Read { eof } -> eof in
       let available = Buffer.length t.buffer in
       if available = 0 && eof then `Eof else `Ok available
-
-    let blit ~src ~src_pos ~dst ~dst_pos ~len =
-      Bytes.blit ~src ~src_pos ~dst ~dst_pos ~len
 
     let refill =
       let rec read t ~size ~dst_pos =
