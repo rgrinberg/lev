@@ -19,8 +19,9 @@ let%expect_test "server & client" =
       let* () = Fiber.Ivar.fill ready_client () in
       let+ () =
         print_endline "server: serving";
-        Socket.Server.serve server ~f:(fun fd _ ->
+        Socket.Server.serve server ~f:(fun session ->
             print_endline "server: client connected";
+            let fd = Socket.Server.Session.fd session in
             Unix.close fd;
             Socket.Server.close server)
       in

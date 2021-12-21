@@ -626,6 +626,17 @@ module Socket = struct
         let* () = Fiber.Pool.stop t.pool in
         Fiber.Ivar.fill t.await ()
 
+    module Session = struct
+      type t = { fd : Unix.file_descr; sockaddr : Unix.sockaddr }
+
+      let fd t = t.fd
+      let sockaddr t = t.sockaddr
+
+      let io t =
+        Unix.set_nonblock t.fd;
+        Io.create_rw t.fd `Non_blocking
+    end
+
     let serve =
       let rec loop t f =
         let* () = Fiber.Ivar.read t.await in
@@ -633,8 +644,11 @@ module Socket = struct
         | true -> Fiber.return ()
         | false ->
             t.await <- Fiber.Ivar.create ();
-            let fd, sockaddr = Unix.accept ~cloexec:true t.fd in
-            let* () = Fiber.Pool.task t.pool ~f:(fun () -> f fd sockaddr) in
+            let session =
+              let fd, sockaddr = Unix.accept ~cloexec:true t.fd in
+              { Session.fd; sockaddr }
+            in
+            let* () = Fiber.Pool.task t.pool ~f:(fun () -> f session) in
             loop t f
       in
       fun (t : t) ~f ->

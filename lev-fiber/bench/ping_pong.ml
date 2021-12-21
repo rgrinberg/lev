@@ -46,9 +46,8 @@ let rec read o reader =
       let* () = pong o times in
       read o reader
 
-let serve fd _sockaddr =
-  Unix.set_nonblock fd;
-  let* i, o = Io.create_rw fd `Non_blocking in
+let serve session =
+  let* i, o = Socket.Server.Session.io session in
   let+ () = Io.with_read i ~f:(fun reader -> read o reader) in
   Io.close i;
   Io.close o
@@ -60,9 +59,9 @@ let run sock_path =
   let addr = Unix.ADDR_UNIX sock_path in
   let* server = Socket.Server.create ~backlog:128 socket addr in
   at_exit delete;
-  let serve fd s =
+  let serve session =
     Fiber.with_error_handler
-      (fun () -> serve fd s)
+      (fun () -> serve session)
       ~on_error:(fun exn ->
         Format.eprintf "%a@.%!" Exn_with_backtrace.pp_uncaught exn;
         Exn_with_backtrace.reraise exn)

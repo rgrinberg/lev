@@ -103,8 +103,15 @@ module Socket : sig
     val create : Unix.file_descr -> Unix.sockaddr -> backlog:int -> t Fiber.t
     val close : t -> unit Fiber.t
 
-    val serve :
-      t -> f:(Unix.file_descr -> Unix.sockaddr -> unit Fiber.t) -> unit Fiber.t
+    module Session : sig
+      type t
+
+      val fd : t -> Unix.file_descr
+      val sockaddr : t -> Unix.sockaddr
+      val io : t -> (Io.input Io.t * Io.output Io.t) Fiber.t
+    end
+
+    val serve : t -> f:(Session.t -> unit Fiber.t) -> unit Fiber.t
   end
 
   val connect : Unix.file_descr -> Unix.sockaddr -> unit Fiber.t
