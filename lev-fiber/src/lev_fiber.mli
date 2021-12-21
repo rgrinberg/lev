@@ -82,16 +82,11 @@ module Io : sig
 
   module Writer : sig
     type t
-    type transaction
 
     (* max size we can allocate for a transaction without resizing *)
     val available : t -> int
-    val buffer : transaction -> Bytes.t * Slice.t
-    val commit : transaction -> len:int -> unit
-
-    val with_transaction :
-      t -> max:int -> f:(transaction -> unit) -> unit Fiber.t
-
+    val prepare : t -> len:int -> Bytes.t * Slice.t
+    val commit : t -> len:int -> unit
     val flush : t -> unit Fiber.t
   end
 

@@ -339,7 +339,7 @@ module Io = struct
   module Slice = Buffer.Slice
 
   type _ kind =
-    | Write : Fiber.Mutex.t -> output kind
+    | Write : output kind
     | Read : { mutable eof : bool } -> input kind
 
   type 'a open_ = { mutable buffer : Buffer.t; kind : 'a kind; fd : Lev_fd.t }
@@ -347,24 +347,17 @@ module Io = struct
 
   module Writer = struct
     type nonrec t = output open_
-    type transaction = t * Slice.t
 
     let available t = Buffer.available t.buffer
-    let commit (t, _) ~len = Buffer.commit t.buffer ~len
 
-    let buffer (t, slice) =
-      let buf = Buffer.buffer t.buffer in
-      (buf, slice)
+    let prepare t ~len =
+      match Buffer.reserve t.buffer ~len with
+      | None -> assert false
+      | Some pos ->
+          let buf = Buffer.buffer t.buffer in
+          (buf, { Slice.pos; len })
 
-    let with_transaction (t : t) ~max ~f =
-      let mutex = match t.kind with Write mutex -> mutex in
-      Fiber.Mutex.with_lock mutex (fun () ->
-          match Buffer.reserve t.buffer ~len:max with
-          | None -> assert false (* TODO *)
-          | Some pos ->
-              let slice = { Slice.pos; len = max } in
-              f (t, slice);
-              Fiber.return ())
+    let commit t ~len = Buffer.commit t.buffer ~len
 
     let rec flush (t : t) =
       match Buffer.peek t.buffer with
@@ -384,9 +377,7 @@ module Io = struct
   let create_gen (type a) fd (mode : a mode) =
     let buffer = Buffer.create ~size:Buffer.default_size in
     let kind : a kind =
-      match mode with
-      | Input -> Read { eof = false }
-      | Output -> Write (Fiber.Mutex.create ())
+      match mode with Input -> Read { eof = false } | Output -> Write
     in
     State.create { buffer; fd; kind }
 

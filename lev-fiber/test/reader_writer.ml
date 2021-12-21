@@ -8,13 +8,14 @@ let%expect_test "pipe" =
     let write () =
       let+ () =
         Io.with_write output ~f:(fun writer ->
-            let str = "foobar" in
-            let len = String.length str in
-            let* () =
-              Io.Writer.with_transaction writer ~max:len ~f:(fun txn ->
-                  let dst, { Io.Slice.pos; len = _ } = Io.Writer.buffer txn in
-                  Bytes.blit_string ~src:str ~src_pos:0 ~dst ~dst_pos:pos ~len;
-                  Io.Writer.commit txn ~len)
+            let () =
+              let str = "foobar" in
+              let len = String.length str in
+              let dst, { Io.Slice.pos; len = _ } =
+                Io.Writer.prepare writer ~len
+              in
+              Bytes.blit_string ~src:str ~src_pos:0 ~dst ~dst_pos:pos ~len;
+              Io.Writer.commit writer ~len
             in
             Io.Writer.flush writer)
       in

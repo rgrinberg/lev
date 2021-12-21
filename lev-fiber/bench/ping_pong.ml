@@ -11,19 +11,18 @@ let response = Bytes.of_string "+PONG\r\n"
 let pong o times =
   Io.with_write o ~f:(fun writer ->
       let len = Bytes.length response * times in
-      let* () =
-        Io.Writer.with_transaction writer ~max:len ~f:(fun txn ->
-            let dst, { Io.Slice.pos; len = _ } = Io.Writer.buffer txn in
-            let pos = ref pos in
-            let () =
-              let len = Bytes.length response in
-              for _ = 1 to times do
-                let dst_pos = !pos in
-                Bytes.blit ~src:response ~src_pos:0 ~len ~dst ~dst_pos;
-                pos := !pos + len
-              done
-            in
-            Io.Writer.commit txn ~len)
+      let () =
+        let dst, { Io.Slice.pos; len = _ } = Io.Writer.prepare writer ~len in
+        let pos = ref pos in
+        let () =
+          let len = Bytes.length response in
+          for _ = 1 to times do
+            let dst_pos = !pos in
+            Bytes.blit ~src:response ~src_pos:0 ~len ~dst ~dst_pos;
+            pos := !pos + len
+          done
+        in
+        Io.Writer.commit writer ~len
       in
       Io.Writer.flush writer)
 
