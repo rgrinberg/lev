@@ -6,6 +6,8 @@
  (public_name lev)
  (synopsis "libev bindings")
  (libraries unix)
+ (instrumentation
+  (backend bisect_ppx))
  (foreign_stubs
   (language c)
   (flags :standard -libm)

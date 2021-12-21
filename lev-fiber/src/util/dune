@@ -1,4 +1,6 @@
 (library
  (name util)
  (libraries stdune threads.posix)
+ (instrumentation
+  (backend bisect_ppx))
  (package lev-fiber))
