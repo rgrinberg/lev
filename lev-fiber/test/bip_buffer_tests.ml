@@ -64,3 +64,46 @@ let%expect_test "bip buffers" =
   [%expect {|
     Requested 4. Available 4
     Peek: "|Bar" |}]
+
+let%expect_test "fill buffer" =
+  let str = "foo bar baz foo" in
+  let len = String.length str in
+  let b = B.create (Bytes.create len) ~len in
+  write_str b str;
+  let str' = peek_str b ~len in
+  assert (String.equal str str');
+  [%expect {|
+    Requested 15. Available 15
+    Peek: "foo bar baz foo" |}]
+
+let%expect_test "reserve overflow" =
+  let buf_size = 16 in
+  let b = B.create (Bytes.create buf_size) ~len:buf_size in
+  let len = 17 in
+  (match B.reserve b ~len with None -> () | Some _ -> assert false);
+  [%expect {||}]
+
+let%expect_test "compress gain spec" =
+  let buf_size = 16 in
+  let half = buf_size / 2 in
+  let b = B.create (Bytes.create buf_size) ~len:buf_size in
+  assert (B.compress_gain b = 0);
+  write_str b (String.make half 'a');
+  assert (B.compress_gain b = 0);
+  write_str b (String.make (pred half) 'b');
+  B.junk b ~len:half;
+  let gain = B.compress_gain b in
+  printfn "gain: %d" gain;
+  assert (gain = 1);
+  [%expect {|
+    gain: 1 |}];
+  let b = B.create (Bytes.create buf_size) ~len:buf_size in
+  write_str b (String.make half 'a');
+  assert (B.length b = half);
+  B.junk b ~len:1;
+  assert (B.length b = pred half);
+  let gain = B.compress_gain b in
+  printfn "gain: %d" gain;
+  assert (gain = 1);
+  [%expect {|
+    gain: 1 |}]

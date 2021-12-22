@@ -78,18 +78,17 @@ let reserve t ~len:size =
 let commit t ~len =
   assert t.reserving;
   if t.b_inuse then (
-    assert (t.b_end + len < t.a_start);
+    assert (t.b_end + len <= t.a_start);
     t.b_end <- t.b_end + len)
   else (
-    assert (t.a_end + len < t.buf_len);
+    assert (t.a_end + len <= t.buf_len);
     t.a_end <- t.a_end + len);
   t.reserving <- false
 
 let compress_gain t =
   if t.a_start = 0 then 0
-  else if t.b_end = 0 then t.a_start
   else if space_left_for_b t >= t.a_end - t.a_start then t.buf_len - t.a_end
-  else 0
+  else t.a_start
 
 let compress t (blit : (_, _) Blit.t) =
   assert (not t.reserving);
