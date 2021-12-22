@@ -66,8 +66,7 @@ let%expect_test "bip buffers" =
     "Test Foo|Bar" |}];
   print b;
   [%expect {|
-    Requested 4. Available 4
-    Peek: "|Bar" |}]
+    "|Bar" |}]
 
 let%expect_test "fill buffer" =
   let str = "foo bar baz foo" in
@@ -114,3 +113,18 @@ let%expect_test "unused space" =
   printfn "unused space: %d" unused;
   assert (unused = 9);
   [%expect {| unused space: 9 |}]
+
+let blit ~src ~src_pos ~dst ~dst_pos ~len =
+  Bytes.blit ~src ~src_pos ~dst ~dst_pos ~len
+
+let%expect_test "resize" =
+  let buf_size = 16 in
+  let b = B.create (Bytes.make buf_size '0') ~len:buf_size in
+  write_str b "00000";
+  print b;
+  [%expect {|
+    "00000" |}];
+  let b = B.resize b blit (Bytes.make (buf_size * 2) '1') ~len:(buf_size * 2) in
+  print b;
+  [%expect {|
+    "00000" |}]

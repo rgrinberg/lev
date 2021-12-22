@@ -115,7 +115,7 @@ let resize t (blit : (_, _) Blit.t) dst ~len =
   let len_t = length t in
   assert (len >= len_t);
   let src = t.buf in
-  let len_a = t.a_start - t.a_end in
+  let len_a = t.a_end - t.a_start in
   blit ~src ~dst ~src_pos:t.a_start ~dst_pos:0 ~len:len_a;
   blit ~src ~dst ~src_pos:0 ~dst_pos:len_a ~len:t.b_end;
   let res =
