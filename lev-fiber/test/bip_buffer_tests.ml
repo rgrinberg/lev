@@ -29,6 +29,12 @@ let peek_str b ~len =
       else printfn "Peek: %S (full: %S)" peek (get s.len);
       peek
 
+let print b =
+  let pp_slice fmt (b, { B.Slice.pos; len }) =
+    Format.fprintf fmt "%S" (Bytes.sub_string b ~pos ~len)
+  in
+  Format.printf "%a@." (B.pp pp_slice) b
+
 let write_str b src =
   let len = String.length src in
   match B.reserve b ~len with
@@ -53,14 +59,12 @@ let%expect_test "bip buffers" =
   (* Now we try to read 4 characters *)
   let () =
     let read_len = 8 in
-    let (_ : string) = peek_str b ~len:read_len in
+    print b;
     B.junk b ~len:read_len
   in
-  [%expect
-    {|
-    Requested 8. Available 12
-    Peek: "Test Foo" (full: "Test Foo|Bar") |}];
-  ignore (peek_str b ~len:4);
+  [%expect {|
+    "Test Foo|Bar" |}];
+  print b;
   [%expect {|
     Requested 4. Available 4
     Peek: "|Bar" |}]

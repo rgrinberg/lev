@@ -32,3 +32,9 @@ val compress : 'a t -> ('a, 'a) Blit.t -> unit
 val resize : 'a t -> ('a, 'b) Blit.t -> 'b -> len:int -> 'b t
 (** [resize t blit buf ~len] will create a new buffer with the same data. The
     old buffer is then emptied and can be reused *)
+
+val pp :
+  (Format.formatter -> 'a * Slice.t -> unit) ->
+  Format.formatter ->
+  'a t ->
+  unit
