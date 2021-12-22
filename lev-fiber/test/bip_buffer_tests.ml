@@ -129,19 +129,38 @@ let%expect_test "resize" =
   [%expect {|
     "00000" |}]
 
-let%expect_test "compression" =
+let%expect_test "compression - a only" =
   let buf_size = 8 in
   let b = B.create (Bytes.make buf_size '0') ~len:buf_size in
   write_str b "00000";
   B.junk b ~len:2;
-  printfn "unused: %d" (B.unused_space b);
-  [%expect {| unused: 5 |}];
+  printfn "available: %d" (B.available b);
+  [%expect {| available: 3 |}];
   B.compress b blit;
   print b;
-  printfn "unused: %d" (B.unused_space b);
   [%expect {|
-    "00000"
-    unused: 3 |}]
+    "00000" |}];
+  printfn "available: %d" (B.available b);
+  [%expect {|
+    available: 3 |}]
+
+let%expect_test "compressio - a & b" =
+  let buf_size = 8 in
+  let b = B.create (Bytes.make buf_size '0') ~len:buf_size in
+  write_str b (String.make 7 '1');
+  B.junk b ~len:6;
+  print b;
+  [%expect {| "1" |}];
+  write_str b (String.make 3 '2');
+  print b;
+  [%expect {| "222""1" |}];
+  printfn "available: %d" (B.available b);
+  [%expect {| available: 3 |}];
+  B.compress b blit;
+  printfn "available: %d" (B.available b);
+  [%expect {| available: 4 |}];
+  print b;
+  [%expect {| "1222" |}]
 
 let%expect_test "reserve and commit b" =
   let buf_size = 8 in

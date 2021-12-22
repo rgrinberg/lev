@@ -105,10 +105,9 @@ let compress t (blit : (_, _) Blit.t) =
       blit ~src ~dst ~src_pos:0 ~dst_pos:len_a ~len:t.b_end;
       blit ~src ~dst ~src_pos:t.a_start ~dst_pos:0 ~len:len_a;
       t.a_start <- 0;
-      t.b_end <- len_a + t.b_end;
+      t.a_end <- len_a + t.b_end;
       t.b_end <- 0;
       t.b_inuse <- false)
-    else ()
 
 let resize t (blit : (_, _) Blit.t) dst ~len =
   assert (not t.reserving);
