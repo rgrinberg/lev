@@ -128,3 +128,17 @@ let%expect_test "resize" =
   print b;
   [%expect {|
     "00000" |}]
+
+let%expect_test "compression" =
+  let buf_size = 8 in
+  let b = B.create (Bytes.make buf_size '0') ~len:buf_size in
+  write_str b "00000";
+  B.junk b ~len:2;
+  printfn "unused: %d" (B.unused_space b);
+  [%expect {| unused: 5 |}];
+  B.compress b blit;
+  print b;
+  printfn "unused: %d" (B.unused_space b);
+  [%expect {|
+    "00000"
+    unused: 3 |}]
