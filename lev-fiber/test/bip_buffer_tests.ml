@@ -142,3 +142,19 @@ let%expect_test "compression" =
   [%expect {|
     "00000"
     unused: 3 |}]
+
+let%expect_test "reserve and commit b" =
+  let buf_size = 8 in
+  let b = B.create (Bytes.make buf_size '0') ~len:buf_size in
+  write_str b (String.make 4 '1');
+  write_str b (String.make 2 '1');
+  assert (B.reserve b ~len:4 = None);
+  B.junk b ~len:4;
+  print b;
+  [%expect {| "11" |}];
+  write_str b (String.make 3 '2');
+  print b;
+  [%expect {| "222""11" |}];
+  write_str b (String.make 1 '3');
+  print b;
+  [%expect {| "2223""11" |}]
