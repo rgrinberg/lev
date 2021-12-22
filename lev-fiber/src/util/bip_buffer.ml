@@ -85,10 +85,7 @@ let commit t ~len =
     t.a_end <- t.a_end + len);
   t.reserving <- false
 
-let compress_gain t =
-  if t.a_start = 0 then 0
-  else if space_left_for_b t >= t.a_end - t.a_start then t.buf_len - t.a_end
-  else t.a_start
+let unused_space t = space_left_for_a t + space_left_for_b t
 
 let compress t (blit : (_, _) Blit.t) =
   assert (not t.reserving);

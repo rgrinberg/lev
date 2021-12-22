@@ -400,7 +400,7 @@ module Io = struct
         | None -> (
             match reserve_fail with
             | `Compress ->
-                if Buffer.compress_gain t.buffer > len then
+                if Buffer.unused_space t.buffer >= len then
                   Buffer.compress t.buffer blit;
                 try_ t ~len `Resize
             | `Resize ->
@@ -527,7 +527,7 @@ module Io = struct
         | None -> (
             match reserve_fail with
             | `Compress ->
-                if Buffer.compress_gain t.buffer > size then
+                if Buffer.unused_space t.buffer >= size then
                   Buffer.compress t.buffer blit;
                 try_ t size `Resize
             | `Resize ->

@@ -83,27 +83,30 @@ let%expect_test "reserve overflow" =
   (match B.reserve b ~len with None -> () | Some _ -> assert false);
   [%expect {||}]
 
-let%expect_test "compress gain spec" =
+let%expect_test "unused space" =
   let buf_size = 16 in
   let half = buf_size / 2 in
   let b = B.create (Bytes.create buf_size) ~len:buf_size in
-  assert (B.compress_gain b = 0);
+  let unused = B.unused_space b in
+  printfn "unused space: %d" unused;
+  [%expect {|
+    unused space: 16 |}];
+  assert (unused = buf_size);
   write_str b (String.make half 'a');
-  assert (B.compress_gain b = 0);
+  assert (B.unused_space b = half);
   write_str b (String.make (pred half) 'b');
   B.junk b ~len:half;
-  let gain = B.compress_gain b in
-  printfn "gain: %d" gain;
-  assert (gain = 1);
+  let unused = B.unused_space b in
+  printfn "unused space: %d" unused;
+  assert (unused = 9);
   [%expect {|
-    gain: 1 |}];
+    unused space: 9 |}];
   let b = B.create (Bytes.create buf_size) ~len:buf_size in
   write_str b (String.make half 'a');
   assert (B.length b = half);
   B.junk b ~len:1;
   assert (B.length b = pred half);
-  let gain = B.compress_gain b in
-  printfn "gain: %d" gain;
-  assert (gain = 1);
-  [%expect {|
-    gain: 1 |}]
+  let unused = B.unused_space b in
+  printfn "unused space: %d" unused;
+  assert (unused = 9);
+  [%expect {| unused space: 9 |}]

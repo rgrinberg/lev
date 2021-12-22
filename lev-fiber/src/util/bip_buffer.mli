@@ -20,11 +20,14 @@ val junk : 'a t -> len:int -> unit
 val peek : 'a t -> Slice.t option
 val reserve : 'a t -> len:int -> int option
 val commit : 'a t -> len:int -> unit
-val compress_gain : 'a t -> int
+
+val unused_space : 'a t -> int
+(** Total amount of free space available in the buffer. Not all of it may be
+    usable. To reclaim it, call [compress] *)
 
 val compress : 'a t -> ('a, 'a) Blit.t -> unit
 (** [compress t blit] will try to compress the buffer with 2 blit operations.
-    Use [compress_gain t] to asses how useful this will be. *)
+    Use [unused_space t] to asses how useful this will be. *)
 
 val resize : 'a t -> ('a, 'b) Blit.t -> 'b -> len:int -> 'b t
 (** [resize t blit buf ~len] will create a new buffer with the same data. The
