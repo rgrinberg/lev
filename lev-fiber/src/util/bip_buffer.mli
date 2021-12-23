@@ -34,7 +34,4 @@ val resize : 'a t -> ('a, 'b) Blit.t -> 'b -> len:int -> 'b t
     old buffer is then emptied and can be reused *)
 
 val pp :
-  (Format.formatter -> 'a * Slice.t -> unit) ->
-  Format.formatter ->
-  'a t ->
-  unit
+  (Format.formatter -> 'a * Slice.t -> unit) -> Format.formatter -> 'a t -> unit
