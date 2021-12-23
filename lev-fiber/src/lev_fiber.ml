@@ -388,32 +388,34 @@ module Io = struct
   let blit ~src ~src_pos ~dst ~dst_pos ~len =
     Bytes.blit ~src ~src_pos ~dst ~dst_pos ~len
 
+  let rec with_resize_buffer t ~len reserve_fail k =
+    match Buffer.reserve t.buffer ~len with
+    | Some dst_pos -> k t ~len ~dst_pos
+    | None -> (
+        match reserve_fail with
+        | `Compress ->
+            if Buffer.unused_space t.buffer >= len then
+              Buffer.compress t.buffer blit;
+            with_resize_buffer t ~len `Resize k
+        | `Resize ->
+            let len = Buffer.length t.buffer + len in
+            let new_buf = Bytes.create len in
+            let buf = Buffer.resize t.buffer blit new_buf ~len in
+            t.buffer <- buf;
+            with_resize_buffer t ~len `Fail k
+        | `Fail -> assert false)
+
   module Writer = struct
     type nonrec t = output open_
 
     let available t = Buffer.available t.buffer
 
     let prepare =
-      let rec try_ t ~len reserve_fail =
-        match Buffer.reserve t.buffer ~len with
-        | Some pos ->
-            let buf = Buffer.buffer t.buffer in
-            (buf, { Slice.pos; len })
-        | None -> (
-            match reserve_fail with
-            | `Compress ->
-                if Buffer.unused_space t.buffer >= len then
-                  Buffer.compress t.buffer blit;
-                try_ t ~len `Resize
-            | `Resize ->
-                let len = Buffer.length t.buffer + len in
-                let new_buf = Bytes.create len in
-                let buf = Buffer.resize t.buffer blit new_buf ~len in
-                t.buffer <- buf;
-                try_ t ~len `Fail
-            | `Fail -> assert false)
+      let k t ~len ~dst_pos:pos =
+        let buf = Buffer.buffer t.buffer in
+        (buf, { Slice.pos; len })
       in
-      fun t ~len -> try_ t ~len `Compress
+      fun t ~len -> with_resize_buffer t ~len `Compress k
 
     let commit t ~len = Buffer.commit t.buffer ~len
 
@@ -507,11 +509,11 @@ module Io = struct
       if available = 0 && eof then `Eof else `Ok available
 
     let refill =
-      let rec read t ~size ~dst_pos =
-        let b = Bytes.create size in
-        let* res = Fd.with_ t.fd Read ~f:(fun fd -> Unix.read fd b 0 size) in
+      let rec read t ~len ~dst_pos =
+        let b = Bytes.create len in
+        let* res = Fd.with_ t.fd Read ~f:(fun fd -> Unix.read fd b 0 len) in
         match res with
-        | Error (Unix.Unix_error (Unix.EAGAIN, _, _)) -> read t ~size ~dst_pos
+        | Error (Unix.Unix_error (Unix.EAGAIN, _, _)) -> read t ~len ~dst_pos
         | Ok 0 | Error (Unix.Unix_error (Unix.EBADF, _, _)) ->
             (match t.kind with Read b -> b.eof <- true);
             Buffer.commit t.buffer ~len:0;
@@ -523,24 +525,8 @@ module Io = struct
             Fiber.return ()
         | Error exn -> reraise exn
       in
-      let rec try_ t size reserve_fail =
-        match Buffer.reserve t.buffer ~len:size with
-        | Some dst_pos -> read t ~size ~dst_pos
-        | None -> (
-            match reserve_fail with
-            | `Compress ->
-                if Buffer.unused_space t.buffer >= size then
-                  Buffer.compress t.buffer blit;
-                try_ t size `Resize
-            | `Resize ->
-                let len = Buffer.length t.buffer + size in
-                let new_buf = Bytes.create len in
-                let buf = Buffer.resize t.buffer blit new_buf ~len in
-                t.buffer <- buf;
-                try_ t size `Fail
-            | `Fail -> assert false)
-      in
-      fun ?(size = Buffer.default_size) t -> try_ t size `Compress
+      fun ?(size = Buffer.default_size) t ->
+        with_resize_buffer t ~len:size `Compress read
   end
 
   let with_read (t : input t) ~f =
