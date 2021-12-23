@@ -17,23 +17,38 @@ let%expect_test "server & client" =
       let* server = Socket.Server.create fd sockaddr ~backlog:10 in
       print_endline "server: created";
       let* () = Fiber.Ivar.fill ready_client () in
-      let+ () =
-        print_endline "server: serving";
-        Socket.Server.serve server ~f:(fun session ->
-            print_endline "server: client connected";
-            let fd = Socket.Server.Session.fd session in
-            Unix.close fd;
-            Socket.Server.close server)
-      in
-      print_endline "server: finished"
+      print_endline "server: serving";
+      Socket.Server.serve server ~f:(fun session ->
+          let* i, o = Socket.Server.Session.io session in
+          print_endline "server: client connected";
+          let* contents = Io.with_read i ~f:Io.Reader.to_string in
+          printfn "server: received %S" contents;
+          Io.close i;
+          let* () =
+            Io.with_write o ~f:(fun w ->
+                Io.Writer.add_string w "pong";
+                Io.Writer.flush w)
+          in
+          Io.close o;
+          Socket.Server.close server)
     in
     let client () =
       let* () = Fiber.Ivar.read ready_client in
       let fd = socket () in
       print_endline "client: starting";
-      let+ () = Socket.connect fd sockaddr in
+      let* () = Socket.connect fd sockaddr in
       print_endline "client: successfully connected";
-      Unix.close fd
+      let* i, o = Io.create_rw fd `Non_blocking in
+      let* () =
+        Io.with_write o ~f:(fun w ->
+            Io.Writer.add_string w "ping";
+            Io.Writer.flush w)
+      in
+      Unix.shutdown fd SHUTDOWN_SEND;
+      Io.close o;
+      let+ result = Io.with_read i ~f:Io.Reader.to_string in
+      printfn "client: received %S" result;
+      Io.close i
     in
     Fiber.fork_and_join_unit client server
   in
@@ -46,4 +61,5 @@ let%expect_test "server & client" =
     client: starting
     client: successfully connected
     server: client connected
-    server: finished |}]
+    server: received "ping"
+    client: received "pong" |}]
