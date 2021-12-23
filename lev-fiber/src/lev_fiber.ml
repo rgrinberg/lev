@@ -527,6 +527,21 @@ module Io = struct
       in
       fun ?(size = Buffer.default_size) t ->
         with_resize_buffer t ~len:size `Compress read
+
+    let to_string =
+      let rec loop t buf =
+        match available t with
+        | `Eof -> Fiber.return (Stdlib.Buffer.contents buf)
+        | `Ok 0 ->
+            let* () = refill t in
+            loop t buf
+        | `Ok _ ->
+            let b, { Slice.pos; len } = buffer t in
+            Stdlib.Buffer.add_subbytes buf b pos len;
+            consume t ~len;
+            loop t buf
+      in
+      fun t -> loop t (Stdlib.Buffer.create 512)
   end
 
   let with_read (t : input t) ~f =

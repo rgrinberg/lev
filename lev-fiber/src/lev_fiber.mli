@@ -78,6 +78,10 @@ module Io : sig
     val buffer : t -> Bytes.t * Slice.t
     val consume : t -> len:int -> unit
     val refill : ?size:int -> t -> unit Fiber.t
+
+    val to_string : t -> string Fiber.t
+    (** [to_string t] read the entire stream into a string. Not recommended for serious use as
+        this is inefficient *)
   end
 
   module Writer : sig

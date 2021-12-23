@@ -23,26 +23,8 @@ let%expect_test "pipe" =
       printfn "writer: finished"
     in
     let read () =
-      let+ () =
-        Io.with_read input ~f:(fun reader ->
-            let buf = Stdlib.Buffer.create 12 in
-            let rec loop () =
-              match Io.Reader.available reader with
-              | `Eof ->
-                  let contents = Stdlib.Buffer.contents buf in
-                  printfn "reader: %s" contents;
-                  Fiber.return ()
-              | `Ok 0 ->
-                  let* () = Io.Reader.refill reader in
-                  loop ()
-              | `Ok _ ->
-                  let b, { Io.Slice.pos; len } = Io.Reader.buffer reader in
-                  Buffer.add_subbytes buf b pos len;
-                  Io.Reader.consume reader ~len;
-                  loop ()
-            in
-            loop ())
-      in
+      let+ contents = Io.with_read input ~f:Io.Reader.to_string in
+      printfn "read: %S" contents;
       Io.close input
     in
     Fiber.fork_and_join_unit read write
@@ -57,7 +39,7 @@ let%expect_test "pipe" =
   Lev_fiber.run (Lev.Loop.create ()) ~f:(print_errors run);
   [%expect {|
     writer: finished
-    reader: foobar |}]
+    read: "foobar" |}]
 
 let%expect_test "blocking pipe" =
   let fdr, fdw = Unix.pipe ~cloexec:true () in
@@ -80,22 +62,7 @@ let%expect_test "blocking pipe" =
       Io.close w
     in
     let reader () =
-      let+ read =
-        Io.with_read r ~f:(fun reader ->
-            let rec loop buf =
-              match Io.Reader.available reader with
-              | `Eof -> Fiber.return (Buffer.contents buf)
-              | `Ok 0 ->
-                  let* () = Io.Reader.refill reader in
-                  loop buf
-              | `Ok _ ->
-                  let bytes, { Io.Slice.pos; len } = Io.Reader.buffer reader in
-                  Buffer.add_subbytes buf bytes pos len;
-                  Io.Reader.consume reader ~len;
-                  loop buf
-            in
-            loop (Buffer.create 12))
-      in
+      let+ read = Io.with_read r ~f:Io.Reader.to_string in
       printfn "read: %S" read;
       Io.close r
     in
