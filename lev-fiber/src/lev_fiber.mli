@@ -35,6 +35,7 @@ module Timer : sig
 end
 
 val waitpid : pid:int -> Unix.process_status Fiber.t
+val signal : signal:int -> unit Fiber.t
 
 module Thread : sig
   type t

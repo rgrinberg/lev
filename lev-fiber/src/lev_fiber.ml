@@ -266,6 +266,18 @@ let waitpid ~pid =
   Lev.Child.start child loop;
   Fiber.Ivar.read ivar
 
+let signal ~signal =
+  let* { loop; queue; _ } = Fiber.Var.get_exn t in
+  let ivar = Fiber.Ivar.create () in
+  let signal =
+    Lev.Signal.create ~signal (fun t ->
+        Queue.push queue (Fiber.Fill (ivar, ()));
+        Lev.Signal.stop t loop;
+        Lev.Signal.destroy t)
+  in
+  Lev.Signal.start signal loop;
+  Fiber.Ivar.read ivar
+
 module Rc : sig
   type 'a t
 
