@@ -123,6 +123,7 @@ module Timer = struct
       delay : float;
       scheduler : scheduler;
       mutable waiting_filled : bool;
+      (* set whenever the wheel is waiting for a new task *)
       mutable waiting : unit Fiber.Ivar.t option;
     }
 
@@ -245,6 +246,7 @@ module Timer = struct
             t := Stopped;
             let* () = cancel_all r in
             match r.waiting with
+            | Some _ when r.waiting_filled -> Fiber.return ()
             | None -> Fiber.return ()
             | Some w -> Fiber.Ivar.fill w ())
   end
