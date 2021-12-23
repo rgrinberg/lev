@@ -92,6 +92,8 @@ module Io : sig
     val prepare : t -> len:int -> Bytes.t * Slice.t
     val commit : t -> len:int -> unit
     val flush : t -> unit Fiber.t
+    val add_substring : t -> string -> pos:int -> len:int -> unit
+    val add_string : t -> string -> unit
   end
 
   val with_read : input t -> f:(Reader.t -> 'a Fiber.t) -> 'a Fiber.t

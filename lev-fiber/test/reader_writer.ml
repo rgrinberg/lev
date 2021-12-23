@@ -8,15 +8,7 @@ let%expect_test "pipe" =
     let write () =
       let+ () =
         Io.with_write output ~f:(fun writer ->
-            let () =
-              let str = "foobar" in
-              let len = String.length str in
-              let dst, { Io.Slice.pos; len = _ } =
-                Io.Writer.prepare writer ~len
-              in
-              Bytes.blit_string ~src:str ~src_pos:0 ~dst ~dst_pos:pos ~len;
-              Io.Writer.commit writer ~len
-            in
+            Io.Writer.add_string writer "foobar";
             Io.Writer.flush writer)
       in
       Io.close output;
@@ -49,13 +41,7 @@ let%expect_test "blocking pipe" =
     let writer () =
       let+ () =
         Io.with_write w ~f:(fun writer ->
-            let src = "foo bar baz" in
-            let len = String.length src in
-            let dst, { Io.Slice.pos = dst_pos; len = _ } =
-              Io.Writer.prepare writer ~len
-            in
-            Bytes.blit_string ~src ~src_pos:0 ~dst ~dst_pos ~len;
-            Io.Writer.commit writer ~len;
+            Io.Writer.add_string writer "foo bar baz";
             Io.Writer.flush writer)
       in
       printfn "writer: finished";

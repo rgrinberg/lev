@@ -419,6 +419,13 @@ module Io = struct
 
     let commit t ~len = Buffer.commit t.buffer ~len
 
+    let add_substring t str ~pos:src_pos ~len =
+      let dst, { Slice.pos; len = _ } = prepare t ~len in
+      Bytes.blit_string ~src:str ~src_pos ~dst ~dst_pos:pos ~len;
+      commit t ~len
+
+    let add_string t str = add_substring t str ~pos:0 ~len:(String.length str)
+
     let rec flush (t : t) =
       match Buffer.peek t.buffer with
       | None -> Fiber.return ()
