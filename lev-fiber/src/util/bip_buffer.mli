@@ -12,16 +12,16 @@ end
 type 'a t
 
 val available : _ t -> int
-val is_empty : 'a t -> bool
-val length : 'a t -> int
+val is_empty : _ t -> bool
+val length : _ t -> int
 val buffer : 'a t -> 'a
 val create : 'a -> len:int -> 'a t
-val junk : 'a t -> len:int -> unit
-val peek : 'a t -> Slice.t option
-val reserve : 'a t -> len:int -> int option
-val commit : 'a t -> len:int -> unit
+val junk : _ t -> len:int -> unit
+val peek : _ t -> Slice.t option
+val reserve : _ t -> len:int -> int option
+val commit : _ t -> len:int -> unit
 
-val unused_space : 'a t -> int
+val unused_space : _ t -> int
 (** Total amount of free space available in the buffer. Not all of it may be
     usable. To reclaim it, call [compress] *)
 
