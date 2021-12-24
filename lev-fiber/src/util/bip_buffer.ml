@@ -3,6 +3,8 @@ open Stdune
 module Blit = struct
   type ('src, 'dst) t =
     src:'src -> src_pos:int -> dst:'dst -> dst_pos:int -> len:int -> unit
+
+  let bytes : (Bytes.t, Bytes.t) t = Bytes.blit
 end
 
 module Slice = struct
@@ -64,6 +66,11 @@ let best_available t =
 let max_available t =
   if t.b_inuse then space_left_for_b t
   else max (space_left_for_a t) (space_left_for_b t)
+
+(* the maximum we can write if we don't mind doing it two blits *)
+let available_two_writes t =
+  if t.b_inuse then space_left_for_b t
+  else space_left_for_a t + space_left_for_b t
 
 let reserve t ~len:size =
   if t.reserving then Code_error.raise "previous reserve not committed" [];
@@ -139,3 +146,52 @@ let pp pp_slice fmt t =
   if t.b_end > 0 then
     let slice = { Slice.pos = 0; len = t.b_end } in
     pp_slice fmt (t.buf, slice)
+
+module Bytes = struct
+  type nonrec t = Bytes.t t
+
+  let resize t ~len =
+    let new_buf = Bytes.create len in
+    resize t Blit.bytes new_buf ~len
+
+  let compress t = compress t Blit.bytes
+
+  module Writer = struct
+    module Make_from_bytes (S : sig
+      val add_subbytes : t -> Bytes.t -> pos:int -> len:int -> unit
+    end) =
+    struct
+      include S
+
+      let add_substring t src ~pos ~len =
+        add_subbytes t (Bytes.unsafe_of_string src) ~len ~pos
+
+      let add_bytes t src = add_subbytes t src ~len:(Bytes.length src) ~pos:0
+      let add_string t src = add_substring t src ~pos:0 ~len:(String.length src)
+      let add_char t c = add_string t (String.make 1 c)
+    end
+
+    include Make_from_bytes (struct
+      let add_subbytes (t : t) src ~pos:src_pos ~len =
+        if unused_space t < len then
+          (* we must resize *)
+          let len = max (t.buf_len + len) (t.buf_len * 2) in
+          resize t ~len
+        else if len > available_two_writes t then
+          (* in this case, a compression is sufficient *)
+          compress t;
+        (* now we know we can fit the write *)
+        let len_1 = min len (best_available t) in
+        let dst_pos = Option.value_exn (reserve t ~len:len_1) in
+        let dst = buffer t in
+        Blit.bytes ~src ~src_pos ~dst_pos ~dst ~len:len_1;
+        commit t ~len:len_1;
+        let len_2 = len - len_1 in
+        if len_2 > 0 then (
+          let src_pos = src_pos + len_1 in
+          let dst_pos = Option.value_exn (reserve t ~len:len_2) in
+          Blit.bytes ~src ~src_pos ~dst_pos ~dst ~len:len_2;
+          commit t ~len:len_2)
+    end)
+  end
+end

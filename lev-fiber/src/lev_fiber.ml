@@ -397,9 +397,6 @@ module Io = struct
   type 'a open_ = { mutable buffer : Buffer.t; kind : 'a kind; fd : Fd.t }
   type 'a t = 'a open_ State.t
 
-  let blit ~src ~src_pos ~dst ~dst_pos ~len =
-    Bytes.blit ~src ~src_pos ~dst ~dst_pos ~len
-
   let rec with_resize_buffer t ~len reserve_fail k =
     match Buffer.reserve t.buffer ~len with
     | Some dst_pos -> k t ~len ~dst_pos
@@ -407,12 +404,11 @@ module Io = struct
         match reserve_fail with
         | `Compress ->
             if Buffer.unused_space t.buffer >= len then
-              Buffer.compress t.buffer blit;
+              Buffer.Bytes.compress t.buffer;
             with_resize_buffer t ~len `Resize k
         | `Resize ->
             let len = Buffer.length t.buffer + len in
-            let new_buf = Bytes.create len in
-            Buffer.resize t.buffer blit new_buf ~len;
+            Buffer.Bytes.resize t.buffer ~len;
             with_resize_buffer t ~len `Fail k
         | `Fail -> assert false)
 
@@ -430,12 +426,10 @@ module Io = struct
 
     let commit t ~len = Buffer.commit t.buffer ~len
 
-    let add_substring t str ~pos:src_pos ~len =
-      let dst, { Slice.pos; len = _ } = prepare t ~len in
-      Bytes.blit_string ~src:str ~src_pos ~dst ~dst_pos:pos ~len;
-      commit t ~len
+    let add_substring t str ~pos ~len =
+      Buffer.Bytes.Writer.add_substring t.buffer str ~pos ~len
 
-    let add_string t str = add_substring t str ~pos:0 ~len:(String.length str)
+    let add_string t str = Buffer.Bytes.Writer.add_string t.buffer str
 
     let rec flush (t : t) =
       match Buffer.peek t.buffer with

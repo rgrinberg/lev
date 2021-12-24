@@ -6,24 +6,13 @@ let () =
   let current = Gc.get () in
   Gc.set { current with max_overhead = 1000000; allocation_policy = 1 }
 
-let response = Bytes.of_string "+PONG\r\n"
+let response = "+PONG\r\n"
 
 let pong o times =
   Io.with_write o ~f:(fun writer ->
-      let len = Bytes.length response * times in
-      let () =
-        let dst, { Io.Slice.pos; len = _ } = Io.Writer.prepare writer ~len in
-        let pos = ref pos in
-        let () =
-          let len = Bytes.length response in
-          for _ = 1 to times do
-            let dst_pos = !pos in
-            Bytes.blit ~src:response ~src_pos:0 ~len ~dst ~dst_pos;
-            pos := !pos + len
-          done
-        in
-        Io.Writer.commit writer ~len
-      in
+      for _ = 1 to times do
+        Io.Writer.add_string writer response
+      done;
       Io.Writer.flush writer)
 
 let rec process_bytes buf pos len count =

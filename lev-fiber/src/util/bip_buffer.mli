@@ -59,3 +59,22 @@ val resize : 'a t -> ('a, 'a) Blit.t -> 'a -> len:int -> unit
 
 val pp :
   (Format.formatter -> 'a * Slice.t -> unit) -> Format.formatter -> 'a t -> unit
+
+module Bytes : sig
+  type nonrec t = Bytes.t t
+
+  val resize : t -> len:int -> unit
+  val compress : t -> unit
+
+  module Writer : sig
+    (** This module will automatically resize/compress the buffer when space
+        runs out. If you want to make sure the buffer doesn't grow, make sure
+        the writes are within [max_available] or [best_available]. *)
+
+    val add_char : t -> char -> unit
+    val add_string : t -> string -> unit
+    val add_substring : t -> string -> pos:int -> len:int -> unit
+    val add_bytes : t -> Bytes.t -> unit
+    val add_subbytes : t -> Bytes.t -> pos:int -> len:int -> unit
+  end
+end
