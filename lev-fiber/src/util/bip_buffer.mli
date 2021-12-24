@@ -10,22 +10,38 @@ module Slice : sig
 end
 
 type 'a t
+(** a bip buffer with some underlying container of bytes indexed by a continuous range
+    of integers that starts from 0. *)
 
 val max_available : _ t -> int
 (** [max_available t] returns the maximum available contiguous write size the
     buffer can accept *)
 
 val best_available : _ t -> int
-(** [best_available t] returns the best available contiguous write the buffer
-    can accept. If all writes are smaller than [best_available t], it is
+(** [best_available t] returns the best available contiguous write size the
+    buffer can accept. If all writes are smaller than [best_available t], it is
     guaranteed that no space will be wasted. *)
 
 val is_empty : _ t -> bool
+(** [is_empty t] true if there are no bytes available to read in [t] *)
+
 val length : _ t -> int
+(** [length t] returns the number of bytes readable in [t] *)
+
 val buffer : 'a t -> 'a
+(** [buffer t] returns the underlying buffer of [t] for reading/writing *)
+
 val create : 'a -> len:int -> 'a t
+(** [create buf ~len] creates a new buffer with underlying storage [buf] of length [len] *)
+
 val junk : _ t -> len:int -> unit
+(** [junk t ~len] discards [len] from the front of the buffer. Usually called after reading *)
+
 val peek : _ t -> Slice.t option
+(** [peek t] returns the next contiguous readable buffer slice as [Some _]. If
+    [t] is empty, [None] is returned. Once a portion of this slice is read,
+    [junk] should be called. *)
+
 val reserve : _ t -> len:int -> int option
 val commit : _ t -> len:int -> unit
 
