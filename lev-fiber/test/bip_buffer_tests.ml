@@ -154,7 +154,7 @@ let%expect_test "compressio - a & b" =
   [%expect {| "1" |}];
   write_str b (String.make 3 '2');
   print b;
-  [%expect {| "222""1" |}];
+  [%expect {| "1""222" |}];
   printfn "available: %d" (B.available b);
   [%expect {| available: 3 |}];
   B.compress b blit;
@@ -174,7 +174,7 @@ let%expect_test "reserve and commit b" =
   [%expect {| "11" |}];
   write_str b (String.make 3 '2');
   print b;
-  [%expect {| "222""11" |}];
+  [%expect {| "11""222" |}];
   write_str b (String.make 1 '3');
   print b;
-  [%expect {| "2223""11" |}]
+  [%expect {| "11""2223" |}]

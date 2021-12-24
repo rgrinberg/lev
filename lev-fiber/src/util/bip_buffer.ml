@@ -126,8 +126,8 @@ let resize t (blit : (_, _) Blit.t) dst ~len =
   t.a_start <- 0
 
 let pp pp_slice fmt t =
-  (if t.b_end > 0 then
-   let slice = { Slice.pos = 0; len = t.b_end } in
-   pp_slice fmt (t.buf, slice));
   let slice = { Slice.pos = t.a_start; len = t.a_end - t.a_start } in
-  pp_slice fmt (t.buf, slice)
+  pp_slice fmt (t.buf, slice);
+  if t.b_end > 0 then
+    let slice = { Slice.pos = 0; len = t.b_end } in
+    pp_slice fmt (t.buf, slice)
