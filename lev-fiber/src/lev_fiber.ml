@@ -419,7 +419,7 @@ module Io = struct
   module Writer = struct
     type nonrec t = output open_
 
-    let available t = Buffer.available t.buffer
+    let available t = Buffer.max_available t.buffer
 
     let prepare =
       let k t ~len ~dst_pos:pos =

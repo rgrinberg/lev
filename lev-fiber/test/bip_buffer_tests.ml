@@ -135,13 +135,13 @@ let%expect_test "compression - a only" =
   let b = B.create (Bytes.make buf_size '0') ~len:buf_size in
   write_str b "00000";
   B.junk b ~len:2;
-  printfn "available: %d" (B.available b);
+  printfn "available: %d" (B.max_available b);
   [%expect {| available: 3 |}];
   B.compress b blit;
   print b;
   [%expect {|
     "00000" |}];
-  printfn "available: %d" (B.available b);
+  printfn "available: %d" (B.max_available b);
   [%expect {|
     available: 3 |}]
 
@@ -155,10 +155,10 @@ let%expect_test "compressio - a & b" =
   write_str b (String.make 3 '2');
   print b;
   [%expect {| "1""222" |}];
-  printfn "available: %d" (B.available b);
+  printfn "available: %d" (B.max_available b);
   [%expect {| available: 3 |}];
   B.compress b blit;
-  printfn "available: %d" (B.available b);
+  printfn "available: %d" (B.max_available b);
   [%expect {| available: 4 |}];
   print b;
   [%expect {| "1222" |}]

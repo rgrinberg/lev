@@ -11,7 +11,15 @@ end
 
 type 'a t
 
-val available : _ t -> int
+val max_available : _ t -> int
+(** [max_available t] returns the maximum available contiguous write size the
+    buffer can accept *)
+
+val best_available : _ t -> int
+(** [best_available t] returns the best available contiguous write the buffer
+    can accept. If all writes are smaller than [best_available t], it is
+    guaranteed that no space will be wasted. *)
+
 val is_empty : _ t -> bool
 val length : _ t -> int
 val buffer : 'a t -> 'a

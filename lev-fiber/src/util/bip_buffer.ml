@@ -55,7 +55,15 @@ let junk t ~len:size =
 
 let space_left_for_a t = t.buf_len - t.a_end
 let space_left_for_b t = t.a_start - t.b_end
-let available t = if t.b_inuse then space_left_for_b t else space_left_for_a t
+
+(* the maximum buffer that doesn't fragment the buffer *)
+let best_available t =
+  if t.b_inuse then space_left_for_b t else space_left_for_a t
+
+(* the maximum space for a single contiguous write *)
+let max_available t =
+  if t.b_inuse then space_left_for_b t
+  else max (space_left_for_a t) (space_left_for_b t)
 
 let reserve t ~len:size =
   if t.reserving then Code_error.raise "previous reserve not committed" [];
