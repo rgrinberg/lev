@@ -5,12 +5,18 @@
 
 ## Abstract
 
-[libev](libev) by Marc Lehmann is a minimal & portable event loop library. Lev
-offers low level bindings to this library. The bindings are designed to be
-minimal, low overhead, and easily embeddable in larger projects. The API is
-callback based so you need to BYOC (bring your own concurrency).
+[libev](libev) by Marc Lehmann is a minimal & portable event loop library. This
+repository contains two packages. The first is `lev` which offers low level
+bindings to this library. The bindings are designed to be minimal, low
+overhead, and easily embeddable in larger projects. The API is callback based
+so you need to BYOC (bring your own concurrency).
+
+The second package is `lev-fiber`. It provides a more familiar, higher level
+API. It is based on dune's fiber library for structured concurrency.
 
 ## Example
+
+This example of the low level API lev api:
 
 ```ocaml
 open Lev
