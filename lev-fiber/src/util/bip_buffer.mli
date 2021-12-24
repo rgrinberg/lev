@@ -29,7 +29,7 @@ val compress : 'a t -> ('a, 'a) Blit.t -> unit
 (** [compress t blit] will try to compress the buffer with 2 blit operations.
     Use [unused_space t] to asses how useful this will be. *)
 
-val resize : 'a t -> ('a, 'b) Blit.t -> 'b -> len:int -> 'b t
+val resize : 'a t -> ('a, 'a) Blit.t -> 'a -> len:int -> unit
 (** [resize t blit buf ~len] will create a new buffer with the same data. The
     old buffer is then emptied and can be reused *)
 

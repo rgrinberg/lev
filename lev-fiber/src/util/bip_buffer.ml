@@ -10,8 +10,8 @@ module Slice = struct
 end
 
 type 'a t = {
-  buf : 'a;
-  buf_len : int;
+  mutable buf : 'a;
+  mutable buf_len : int;
   mutable a_start : int;
   mutable a_end : int;
   mutable b_end : int;
@@ -117,22 +117,13 @@ let resize t (blit : (_, _) Blit.t) dst ~len =
   let len_a = t.a_end - t.a_start in
   blit ~src ~dst ~src_pos:t.a_start ~dst_pos:0 ~len:len_a;
   blit ~src ~dst ~src_pos:0 ~dst_pos:len_a ~len:t.b_end;
-  let res =
-    {
-      reserving = false;
-      buf = dst;
-      buf_len = len;
-      a_start = 0;
-      b_end = 0;
-      a_end = len_t;
-      b_inuse = false;
-    }
-  in
+  t.buf <- dst;
+  t.buf_len <- len;
   t.a_start <- 0;
-  t.a_end <- 0;
   t.b_end <- 0;
+  t.a_end <- len_t;
   t.b_inuse <- false;
-  res
+  t.a_start <- 0
 
 let pp pp_slice fmt t =
   (if t.b_end > 0 then

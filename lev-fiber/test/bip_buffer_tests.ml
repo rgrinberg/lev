@@ -125,7 +125,7 @@ let%expect_test "resize" =
   print b;
   [%expect {|
     "00000" |}];
-  let b = B.resize b blit (Bytes.make (buf_size * 2) '1') ~len:(buf_size * 2) in
+  B.resize b blit (Bytes.make (buf_size * 2) '1') ~len:(buf_size * 2);
   print b;
   [%expect {|
     "00000" |}]

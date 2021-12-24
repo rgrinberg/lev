@@ -22,9 +22,9 @@ module Buffer = struct
 
   let default_size = 4096
 
-  type t = Bytes.t Bip_buffer.t
+  type nonrec t = bytes t
 
-  let create ~size : t = create (Bytes.create size) ~len:size
+  let create ~size : t = create (Stdlib.Bytes.create size) ~len:size
 end
 
 module State = struct
@@ -412,8 +412,7 @@ module Io = struct
         | `Resize ->
             let len = Buffer.length t.buffer + len in
             let new_buf = Bytes.create len in
-            let buf = Buffer.resize t.buffer blit new_buf ~len in
-            t.buffer <- buf;
+            Buffer.resize t.buffer blit new_buf ~len;
             with_resize_buffer t ~len `Fail k
         | `Fail -> assert false)
 
