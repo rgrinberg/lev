@@ -1,6 +1,6 @@
 open Stdune
 open Fiber.O
-open Util
+open Lev_fiber_util
 module Timestamp = Lev.Timestamp
 
 type t = {

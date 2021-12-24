@@ -1,6 +1,7 @@
 open Stdune
 module Bytes = BytesLabels
-module B = Util.Bip_buffer
+open Lev_fiber_util
+module B = Bip_buffer
 
 let%expect_test "is_empty" =
   let len = 100 in

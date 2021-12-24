@@ -1,4 +1,4 @@
-module Channel = Util.Channel
+module Channel = Lev_fiber_util.Channel
 
 let%expect_test "send/recv 0, 1 in concurrent threads; then close the channel" =
   let ch = Channel.create () in

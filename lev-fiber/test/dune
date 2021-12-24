@@ -4,7 +4,7 @@
   fiber
   lev
   lev_fiber
-  util
+  lev_fiber_util
   stdune
   unix
   threads.posix

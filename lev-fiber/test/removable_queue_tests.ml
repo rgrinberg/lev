@@ -1,5 +1,6 @@
 open Stdune
-module Q = Util.Removable_queue
+open Lev_fiber_util
+module Q = Removable_queue
 
 let printf = Printf.printf
 
