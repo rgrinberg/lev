@@ -33,3 +33,16 @@
   stdune
   base-threads
   base-unix))
+
+(package
+ (synopsis "Fiber + Lev + Csexp")
+ (description "Client/Servers that use csexp for transport")
+ (name lev-fiber-csexp)
+ (depends
+  (ppx_expect :with-test)
+  lev_fiber
+  stdune
+  dyn
+  csexp
+  fiber
+  base-unix))
