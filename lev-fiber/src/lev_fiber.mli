@@ -82,6 +82,10 @@ module Io : sig
     val consume : t -> len:int -> unit
     val refill : ?size:int -> t -> unit Fiber.t
 
+    exception Unavailable
+
+    val read_char_exn : t -> char
+
     val to_string : t -> string Fiber.t
     (** [to_string t] read the entire stream into a string. Not recommended for serious use as
         this is inefficient *)

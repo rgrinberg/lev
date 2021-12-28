@@ -509,11 +509,11 @@ module Io = struct
   module Reader = struct
     type t = input open_
 
+    exception Unavailable
+
     let buffer t =
       match Buffer.peek t.buffer with
-      | None ->
-          (* we don't surface empty reads to the user *)
-          assert false
+      | None -> raise Unavailable
       | Some { Buffer.Slice.pos; len } ->
           let b = Buffer.buffer t.buffer in
           (b, { Slice.pos; len })
@@ -524,6 +524,12 @@ module Io = struct
       let eof = match t.kind with Read { eof } -> eof in
       let available = Buffer.length t.buffer in
       if available = 0 && eof then `Eof else `Ok available
+
+    let read_char_exn t =
+      let b, { Buffer.Slice.pos; len = _ } = buffer t in
+      let res = Bytes.get b pos in
+      consume t ~len:1;
+      res
 
     let refill =
       let rec read t ~len ~dst_pos =
