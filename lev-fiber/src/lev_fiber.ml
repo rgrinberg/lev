@@ -397,6 +397,11 @@ module Io = struct
   type 'a open_ = { mutable buffer : Buffer.t; kind : 'a kind; fd : Fd.t }
   type 'a t = 'a open_ State.t
 
+  let fd (t : _ t) =
+    match (State.check_open t).fd with
+    | Blocking (_, fd) -> Rc.get_exn fd
+    | Non_blocking fd -> Lev_fd.fd (Rc.get_exn fd)
+
   let rec with_resize_buffer t ~len reserve_fail k =
     match Buffer.reserve t.buffer ~len with
     | Some dst_pos -> k t ~len ~dst_pos

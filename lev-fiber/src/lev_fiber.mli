@@ -60,6 +60,8 @@ module Io : sig
   type 'a mode = Input : input mode | Output : output mode
   type 'a t
 
+  val fd : _ t -> Unix.file_descr
+
   val create :
     Unix.file_descr -> [ `Blocking | `Non_blocking ] -> 'a mode -> 'a t Fiber.t
 
