@@ -1,11 +1,11 @@
 (library
- (name lev_fiber_csexp_rpc_tests)
+ (name lev_fiber_csexp_tests)
  (libraries
   fiber
   csexp
   lev
   lev_fiber
-  lev_fiber_csexp_rpc
+  lev_fiber_csexp
   stdune
   unix
   threads.posix

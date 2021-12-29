@@ -1,6 +1,6 @@
 open Stdune
 open Fiber.O
-module Csexp_rpc = Lev_fiber_csexp_rpc
+module Csexp_rpc = Lev_fiber_csexp
 
 let%expect_test "serve/connect" =
   let path = "levfibercsexp.sock" in
