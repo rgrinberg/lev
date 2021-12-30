@@ -140,10 +140,10 @@ let%expect_test "compression - a only" =
   B.compress b blit;
   print b;
   [%expect {|
-    "00000" |}];
+    "000" |}];
   printfn "available: %d" (B.max_available b);
   [%expect {|
-    available: 3 |}]
+    available: 5 |}]
 
 let%expect_test "compressio - a & b" =
   let buf_size = 8 in

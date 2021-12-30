@@ -112,7 +112,7 @@ let compress t (blit : (_, _) Blit.t) =
       let len_a = t.a_end - t.a_start in
       blit ~src ~dst ~src_pos:t.a_start ~dst_pos:0 ~len:len_a;
       t.a_start <- 0;
-      t.b_end <- len_a;
+      t.a_end <- len_a;
       t.b_end <- 0;
       t.b_inuse <- false)
     else if space_left_for_b t >= t.a_end - t.a_start then (
