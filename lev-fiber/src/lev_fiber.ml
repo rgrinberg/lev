@@ -194,7 +194,7 @@ module Timer = struct
       match !t with
       | Stopped -> Fiber.return ()
       | Running r -> (
-          match Removable_queue.pop r.queue with
+          match Removable_queue.peek r.queue with
           | None ->
               let ivar = Fiber.Ivar.create () in
               r.waiting <- Some ivar;
@@ -203,26 +203,32 @@ module Timer = struct
               r.waiting <- None;
               r.waiting_filled <- false;
               run t
-          | Some task ->
+          | Some node ->
+              let task = Removable_queue.data node in
               let after =
                 let now = Timestamp.to_float (Lev.Loop.now r.scheduler.loop) in
                 let scheduled = Timestamp.to_float task.scheduled in
                 scheduled -. now +. r.delay
               in
-              let scheduler = task.wheel.scheduler in
-              let ivar = Fiber.Ivar.create () in
-              let timer =
-                Lev.Timer.create ~after (fun timer ->
-                    (* TODO reuse timer *)
-                    Lev.Timer.destroy timer;
-                    Queue.push scheduler.queue (Fiber.Fill (ivar, ())))
-              in
-              Lev.Timer.start timer scheduler.loop;
-              let* () = Fiber.Ivar.read ivar in
-              let () =
-                if not task.filled then (
-                  task.filled <- true;
-                  Queue.push scheduler.queue (Fiber.Fill (task.ivar, `Ok)))
+              let expired = after < 0. in
+              let* () =
+                if expired then (
+                  Removable_queue.remove node;
+                  if not task.filled then (
+                    task.filled <- true;
+                    Queue.push r.scheduler.queue (Fiber.Fill (task.ivar, `Ok)));
+                  Fiber.return ())
+                else
+                  let scheduler = task.wheel.scheduler in
+                  let ivar = Fiber.Ivar.create () in
+                  let timer =
+                    Lev.Timer.create ~after (fun timer ->
+                        (* TODO reuse timer *)
+                        Lev.Timer.destroy timer;
+                        Queue.push scheduler.queue (Fiber.Fill (ivar, ())))
+                  in
+                  Lev.Timer.start timer scheduler.loop;
+                  Fiber.Ivar.read ivar
               in
               run t)
 

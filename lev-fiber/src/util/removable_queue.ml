@@ -54,6 +54,9 @@ let push : 'a. 'a t -> 'a -> 'a node =
 let mark_as_detached (node : 'a node) = node.prev <- node
 let is_detached (node : 'a node) = node.prev == node
 
+let peek : 'a. 'a t -> 'a node option =
+ fun sentinel -> if is_empty sentinel then None else Some sentinel.next
+
 (* removes head node *)
 let pop : 'a. 'a t -> 'a option =
  fun sentinel ->

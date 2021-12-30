@@ -48,30 +48,35 @@ let%expect_test "timer wheel cancellation" =
 
 let%expect_test "timer wheel cancellation" =
   Lev_fiber.run (Lev.Loop.create ()) ~f:(fun () ->
-      let* wheel = Wheel.create ~delay:0.2 in
+      let delay = 0.3 in
+      let sleep () = Timer.sleepf (delay /. 2.) in
+      let* wheel = Wheel.create ~delay in
+      let pool = Fiber.Pool.create () in
       Fiber.fork_and_join_unit
         (fun () ->
-          let* t1 = Wheel.task wheel in
-          let* t2 = Wheel.task wheel in
           let await t n =
             let+ t = Wheel.await t in
             match t with
             | `Ok -> printfn "%i finished" n
             | `Cancelled -> assert false
           in
-          let run () =
-            let* () =
-              Fiber.fork_and_join_unit
-                (fun () -> await t1 1)
-                (fun () -> await t2 2)
-            in
-            Wheel.stop wheel
+          let* t1 = Wheel.task wheel in
+          let* () = Fiber.Pool.task pool ~f:(fun () -> await t1 1) in
+          let* t2 =
+            let* () = sleep () in
+            Wheel.task wheel
           in
-          Wheel.reset t1;
-          run ())
+          let* () = Fiber.Pool.task pool ~f:(fun () -> await t2 2) in
+          let* () = Fiber.Pool.stop pool in
+          let+ () = sleep () in
+          Wheel.reset t1)
         (fun () ->
           print_endline "wheel: run";
-          Wheel.run wheel));
+          Fiber.fork_and_join_unit
+            (fun () ->
+              let* () = Fiber.Pool.run pool in
+              Wheel.stop wheel)
+            (fun () -> Wheel.run wheel)));
   [%expect {|
     wheel: run
     2 finished
