@@ -557,6 +557,115 @@ module Io = struct
       fun ?(size = Buffer.default_size) t ->
         with_resize_buffer t ~len:size `Compress read
 
+    exception Found of int
+
+    let read_line =
+      let contents buf =
+        let module Buffer = Stdlib.Buffer in
+        let len = Buffer.length buf in
+        if len = 0 then ""
+        else if Buffer.nth buf (len - 1) = '\r' then Buffer.sub buf 0 (len - 1)
+        else Buffer.contents buf
+      in
+      let find_nl b pos len =
+        try
+          for i = pos to pos + len - 1 do
+            if Bytes.get b i = '\n' then raise_notrace (Found i)
+          done;
+          None
+        with Found i -> Some i
+      in
+      let rec loop t buf =
+        match available t with
+        | `Eof ->
+            Fiber.return (Error (`Partial_eof (Stdlib.Buffer.contents buf)))
+        | `Ok 0 ->
+            let* () = refill t in
+            loop t buf
+        | `Ok _ -> (
+            let b, { Slice.pos; len } = buffer t in
+            match find_nl b pos len with
+            | Some i ->
+                let len = i - pos in
+                Stdlib.Buffer.add_subbytes buf b pos len;
+                Buffer.junk t.buffer ~len:(len + 1);
+                Fiber.return (Ok (contents buf))
+            | None ->
+                Stdlib.Buffer.add_subbytes buf b pos len;
+                Buffer.junk t.buffer ~len;
+                loop t buf)
+      in
+      let rec self t =
+        (* we can always call loop, but we do a little optimization to see if we can
+           read the line without an extra copy
+        *)
+        match available t with
+        | `Eof -> Fiber.return (Error (`Partial_eof ""))
+        | `Ok 0 ->
+            let* () = refill t in
+            self t
+        | `Ok _ -> (
+            let b, { Slice.pos; len } = buffer t in
+            match find_nl b pos len with
+            | Some i ->
+                let len = i - pos in
+                let res =
+                  let len =
+                    if len > 0 && Bytes.get b (i - 1) = '\r' then len - 1
+                    else len
+                  in
+                  Bytes.sub b ~pos ~len
+                in
+                Buffer.junk t.buffer ~len:(len + 1);
+                Fiber.return (Ok (Bytes.unsafe_to_string res))
+            | None ->
+                let buf = Stdlib.Buffer.create len in
+                Stdlib.Buffer.add_subbytes buf b pos len;
+                Buffer.junk t.buffer ~len;
+                loop t buf)
+      in
+      self
+
+    let read_exactly =
+      let rec loop_buffer t buf remains =
+        if remains = 0 then Fiber.return (Ok (Stdlib.Buffer.contents buf))
+        else
+          match available t with
+          | `Eof ->
+              Fiber.return (Error (`Partial_eof (Stdlib.Buffer.contents buf)))
+          | `Ok 0 ->
+              let* () = refill t in
+              loop_buffer t buf remains
+          | `Ok _ ->
+              let b, { Slice.pos; len } = buffer t in
+              let len = min remains len in
+              Stdlib.Buffer.add_subbytes buf b pos len;
+              Buffer.junk t.buffer ~len;
+              loop_buffer t buf (remains - len)
+      in
+      let rec self t len =
+        (* we can always call loop, but we do a little optimization to see if we can
+           read the line without an extra copy
+        *)
+        match available t with
+        | `Eof -> Fiber.return (Error (`Partial_eof ""))
+        | `Ok 0 ->
+            let* () = refill t in
+            self t len
+        | `Ok _ ->
+            let b, { Slice.pos; len = avail } = buffer t in
+            if len <= avail then (
+              let res = Bytes.sub b ~pos ~len in
+              Buffer.junk t.buffer ~len;
+              Fiber.return (Ok (Bytes.unsafe_to_string res)))
+            else
+              let buf = Stdlib.Buffer.create len in
+              Stdlib.Buffer.add_subbytes buf b pos avail;
+              Buffer.junk t.buffer ~len:avail;
+              loop_buffer t buf (len - avail)
+      in
+      self
+
     let to_string =
       let rec loop t buf =
         match available t with

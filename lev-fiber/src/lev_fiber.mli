@@ -85,6 +85,10 @@ module Io : sig
     exception Unavailable
 
     val read_char_exn : t -> char
+    val read_line : t -> (string, [ `Partial_eof of string ]) result Fiber.t
+
+    val read_exactly :
+      t -> int -> (string, [ `Partial_eof of string ]) result Fiber.t
 
     val to_string : t -> string Fiber.t
     (** [to_string t] read the entire stream into a string. Not recommended for serious use as
