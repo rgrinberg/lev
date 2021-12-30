@@ -148,7 +148,7 @@ let%expect_test "read lines" =
     line: "baz\r"
     eof: "eof" |}]
 
-let%expect_test "read lines" =
+let%expect_test "read exactly - sufficient" =
   let len = 6 in
   with_pipe_test "foobarbaz" (fun r ->
       Io.with_read r ~f:(fun reader ->
@@ -159,3 +159,16 @@ let%expect_test "read lines" =
               assert (String.length s = len);
               printfn "success: %S\n" s));
   [%expect {| success: "foobar" |}]
+
+let%expect_test "read exactly - insufficient" =
+  let str = "foobarbaz" in
+  let len = String.length str + 10 in
+  with_pipe_test str (fun r ->
+      Io.with_read r ~f:(fun reader ->
+          let+ res = Io.Reader.read_exactly reader len in
+          match res with
+          | Error (`Partial_eof s) -> printfn "eof: %S" s
+          | Ok s ->
+              assert (String.length s = len);
+              printfn "success: %S\n" s));
+  [%expect {| eof: "foobarbaz" |}]
