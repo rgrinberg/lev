@@ -134,4 +134,7 @@ module Socket : sig
   val connect : Unix.file_descr -> Unix.sockaddr -> unit Fiber.t
 end
 
+(** [yield ()] wait for one iteartion of the event loop *)
+val yield : unit -> unit Fiber.t
+
 val run : Lev.Loop.t -> f:(unit -> 'a Fiber.t) -> 'a

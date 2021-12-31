@@ -818,6 +818,12 @@ module Socket = struct
   end
 end
 
+let yield () =
+  let* scheduler = Fiber.Var.get_exn scheduler in
+  let ivar = Fiber.Ivar.create () in
+  Queue.push scheduler.queue (Fiber.Fill (ivar, ()));
+  Fiber.Ivar.read ivar
+
 let run lev_loop ~f =
   let thread_jobs = Queue.create () in
   let thread_mutex = Mutex.create () in
