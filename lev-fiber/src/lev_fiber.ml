@@ -369,7 +369,7 @@ module Io = struct
   module Slice = Buffer.Slice
 
   type _ kind =
-    | Write : output kind
+    | Write : { mutable flush_counter : int } -> output kind
     | Read : { mutable eof : bool } -> input kind
 
   module Fd = struct
@@ -442,27 +442,44 @@ module Io = struct
 
     let add_string t str = Buffer.Bytes.Writer.add_string t.buffer str
 
-    let rec flush (t : t) =
-      match Buffer.peek t.buffer with
-      | None -> Fiber.return ()
-      | Some { Slice.pos; len } -> (
+    let flush =
+      let rec loop t stop_count =
+        (* TODO fix overflow issues *)
+        if
+          (match t.kind with Write { flush_counter } -> flush_counter)
+          >= stop_count
+        then Fiber.return ()
+        else
           let buffer = Buffer.buffer t.buffer in
           let* res =
             Fd.with_ t.fd Write ~f:(fun fd ->
-                Unix.single_write fd buffer pos len)
+                match Buffer.peek t.buffer with
+                | None -> ()
+                | Some { Slice.pos; len } -> (
+                    let len = Unix.single_write fd buffer pos len in
+                    Buffer.junk t.buffer ~len;
+                    match t.kind with
+                    | Write t -> t.flush_counter <- t.flush_counter + len))
           in
           match res with
-          | Error (Unix.Unix_error (Unix.EAGAIN, _, _)) -> flush t
+          | Error (Unix.Unix_error (Unix.EAGAIN, _, _)) -> loop t stop_count
           | Error exn -> reraise exn
-          | Ok len ->
-              Buffer.junk t.buffer ~len;
-              flush t)
+          | Ok () -> loop t stop_count
+      in
+      fun t ->
+        let stop_count =
+          match t.kind with
+          | Write { flush_counter } -> flush_counter + Buffer.length t.buffer
+        in
+        loop t stop_count
   end
 
   let create_gen (type a) fd (mode : a mode) =
     let buffer = Buffer.create ~size:Buffer.default_size in
     let kind : a kind =
-      match mode with Input -> Read { eof = false } | Output -> Write
+      match mode with
+      | Input -> Read { eof = false }
+      | Output -> Write { flush_counter = 0 }
     in
     State.create { buffer; fd; kind }
 
