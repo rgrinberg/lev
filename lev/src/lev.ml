@@ -10,10 +10,12 @@ end) =
 struct
   type t = int
 
+  let equal = Int.equal
   let mem t c = t land Element.to_int c <> 0
   let singleton x : t = Element.to_int x
   let empty : t = 0
   let union x y = x lor y
+  let add x y = union x (singleton y)
   let negate x = lnot x
   let inter x y = x land y
 end

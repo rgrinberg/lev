@@ -162,8 +162,10 @@ module Io : sig
       type t
       type event
 
+      val equal : t -> t -> bool
       val mem : t -> event -> bool
       val create : ?read:bool -> ?write:bool -> unit -> t
+      val add : t -> event -> t
     end
     with type event := t
   end

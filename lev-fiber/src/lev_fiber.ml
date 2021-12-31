@@ -314,16 +314,27 @@ end = struct
 end
 
 module Lev_fd = struct
+  module Event = Lev.Io.Event
+
   type t = {
     io : Lev.Io.t;
     scheduler : scheduler;
+    mutable events : Event.Set.t;
     read : unit Fiber.Ivar.t Queue.t;
     write : unit Fiber.Ivar.t Queue.t;
   }
 
+  let reset nb new_set =
+    nb.events <- new_set;
+    Lev.Io.stop nb.io nb.scheduler.loop;
+    Lev.Io.modify nb.io nb.events;
+    Lev.Io.start nb.io nb.scheduler.loop
+
   let fd t = Lev.Io.fd t.io
 
   let await t (what : Lev.Io.Event.t) =
+    if not (Event.Set.mem t.events what) then
+      reset t (Event.Set.add t.events what);
     let ivar = Fiber.Ivar.create () in
     let q = match what with Write -> t.write | Read -> t.read in
     Queue.push q ivar;
@@ -338,25 +349,38 @@ module Lev_fd = struct
   let make_cb t scheduler _ _ set =
     match Rc.get (Fdecl.get t) with
     | None -> ()
-    | Some nb -> (
+    | Some nb ->
+        let keep_read = ref true in
+        let keep_write = ref true in
         (if Lev.Io.Event.Set.mem set Read then
          match Queue.pop nb.read with
          | Some ivar -> Queue.push scheduler.queue (Fiber.Fill (ivar, ()))
-         | None -> ());
-        if Lev.Io.Event.Set.mem set Write then
-          match Queue.pop nb.write with
-          | Some ivar -> Queue.push scheduler.queue (Fiber.Fill (ivar, ()))
-          | None -> ())
+         | None -> keep_read := false);
+        (if Lev.Io.Event.Set.mem set Write then
+         match Queue.pop nb.write with
+         | Some ivar -> Queue.push scheduler.queue (Fiber.Fill (ivar, ()))
+         | None -> keep_write := false);
+        let new_set =
+          Lev.Io.Event.Set.create ~read:!keep_read ~write:!keep_write ()
+        in
+        if not (Lev.Io.Event.Set.equal new_set nb.events) then reset nb new_set
 
-  let create ~ref_count events fd : t Rc.t Fiber.t =
+  let create ~ref_count fd : t Rc.t Fiber.t =
     let+ scheduler = Fiber.Var.get_exn scheduler in
     let t : t Rc.t Fdecl.t = Fdecl.create Dyn.opaque in
+    let events = Event.Set.create () in
     let io = Lev.Io.create (make_cb t scheduler) fd events in
     Fdecl.set t
       (Rc.create
          ~finalize:(make_finalizer scheduler.loop io)
          ~count:ref_count
-         { scheduler; io; read = Queue.create (); write = Queue.create () });
+         {
+           events;
+           scheduler;
+           io;
+           read = Queue.create ();
+           write = Queue.create ();
+         });
     Lev.Io.start io scheduler.loop;
     Fdecl.get t
 end
@@ -486,13 +510,7 @@ module Io = struct
   let create (type a) fd blockity (mode : a mode) =
     match blockity with
     | `Non_blocking ->
-        let+ fd =
-          let read, write =
-            match mode with Input -> (true, false) | Output -> (false, true)
-          in
-          let set = Lev.Io.Event.Set.create ~read ~write () in
-          Lev_fd.create ~ref_count:1 set fd
-        in
+        let+ fd = Lev_fd.create ~ref_count:1 fd in
         create_gen (Fd.Non_blocking fd) mode
     | `Blocking ->
         let+ thread = Thread.create () in
@@ -503,8 +521,7 @@ module Io = struct
     match blockity with
     | `Non_blocking ->
         let+ fd =
-          let set = Lev.Io.Event.Set.create ~read:true ~write:true () in
-          let+ fd = Lev_fd.create ~ref_count:2 set fd in
+          let+ fd = Lev_fd.create ~ref_count:2 fd in
           Fd.Non_blocking fd
         in
         let r = create_gen fd Input in
