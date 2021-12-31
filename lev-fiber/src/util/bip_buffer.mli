@@ -65,6 +65,7 @@ module Bytes : sig
 
   val resize : t -> len:int -> unit
   val compress : t -> unit
+  val pp : Format.formatter -> t -> unit
 
   module Writer : sig
     (** This module will automatically resize/compress the buffer when space

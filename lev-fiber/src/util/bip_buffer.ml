@@ -156,6 +156,11 @@ module Bytes = struct
 
   let compress t = compress t Blit.bytes
 
+  let pp_slice fmt (bytes, { Slice.pos; len }) =
+    Format.fprintf fmt "%s" (Bytes.sub_string bytes ~pos ~len)
+
+  let pp fmt (t : t) = pp pp_slice fmt t
+
   module Writer = struct
     module Make_from_bytes (S : sig
       val add_subbytes : t -> Bytes.t -> pos:int -> len:int -> unit
