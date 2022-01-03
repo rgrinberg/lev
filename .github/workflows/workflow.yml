@@ -29,6 +29,6 @@ jobs:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
           opam-local-packages: lev.opam lev-fiber.opam
 
-      - run: opam install --deps-only --with-doc --with-test lev lev-fiber
+      - run: opam install --deps-only --with-doc --with-test .
       - run: opam exec -- dune build
       - run: opam exec -- dune runtest
