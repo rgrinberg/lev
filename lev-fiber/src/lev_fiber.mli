@@ -77,11 +77,6 @@ module Io : sig
   module Reader : sig
     type t
 
-    val available : t -> [ `Ok of int | `Eof ]
-    val buffer : t -> Bytes.t * Slice.t
-    val consume : t -> len:int -> unit
-    val refill : ?size:int -> t -> unit Fiber.t
-
     exception Unavailable
 
     val read_char_exn : t -> char
@@ -93,18 +88,28 @@ module Io : sig
     val to_string : t -> string Fiber.t
     (** [to_string t] read the entire stream into a string. Not recommended for serious use as
         this is inefficient *)
+
+    module Expert : sig
+      val available : t -> [ `Ok of int | `Eof ]
+      val buffer : t -> Bytes.t * Slice.t
+      val consume : t -> len:int -> unit
+      val refill : ?size:int -> t -> unit Fiber.t
+    end
   end
 
   module Writer : sig
     type t
 
-    (* max size we can allocate for a transaction without resizing *)
-    val available : t -> int
-    val prepare : t -> len:int -> Bytes.t * Slice.t
-    val commit : t -> len:int -> unit
     val flush : t -> unit Fiber.t
     val add_substring : t -> string -> pos:int -> len:int -> unit
     val add_string : t -> string -> unit
+
+    module Expert : sig
+      (* max size we can allocate for a transaction without resizing *)
+      val available : t -> int
+      val prepare : t -> len:int -> Bytes.t * Slice.t
+      val commit : t -> len:int -> unit
+    end
   end
 
   val with_read : input t -> f:(Reader.t -> 'a Fiber.t) -> 'a Fiber.t

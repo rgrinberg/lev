@@ -23,15 +23,15 @@ let rec process_bytes buf pos len count =
     process_bytes buf (pos + 1) len count
 
 let rec read o reader =
-  match Io.Reader.available reader with
+  match Io.Reader.Expert.available reader with
   | `Eof -> Fiber.return ()
   | `Ok 0 ->
-      let* () = Io.Reader.refill reader in
+      let* () = Io.Reader.Expert.refill reader in
       read o reader
   | `Ok _ ->
-      let buf, { Io.Slice.pos; len } = Io.Reader.buffer reader in
+      let buf, { Io.Slice.pos; len } = Io.Reader.Expert.buffer reader in
       let times = process_bytes buf pos len 0 in
-      Io.Reader.consume reader ~len;
+      Io.Reader.Expert.consume reader ~len;
       let* () = pong o times in
       read o reader
 

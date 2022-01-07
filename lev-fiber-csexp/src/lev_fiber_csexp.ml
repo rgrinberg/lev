@@ -41,12 +41,12 @@ module Session = struct
         let lexer = Lexer.create () in
         let buf = Buffer.create 16 in
         let rec loop reader parser =
-          match Io.Reader.available reader with
+          match Io.Reader.Expert.available reader with
           | `Eof ->
               Lexer.feed_eoi lexer;
               Fiber.return None
           | `Ok 0 ->
-              let* () = Io.Reader.refill reader in
+              let* () = Io.Reader.Expert.refill reader in
               loop reader parser
           | `Ok _ -> (
               let token =
@@ -69,20 +69,20 @@ module Session = struct
             | Sexp (sexp, Empty) -> Fiber.return (Some sexp)
             | parser -> loop reader parser
           else
-            match Io.Reader.available reader with
+            match Io.Reader.Expert.available reader with
             | `Eof ->
                 Lexer.feed_eoi lexer;
                 Fiber.return None
             | `Ok 0 ->
-                let* () = Io.Reader.refill reader in
+                let* () = Io.Reader.Expert.refill reader in
                 atom reader parser len
             | `Ok _ ->
                 let bytes, { Io.Slice.pos; len = buf_len } =
-                  Io.Reader.buffer reader
+                  Io.Reader.Expert.buffer reader
                 in
                 let len = min len buf_len in
                 Buffer.add_subbytes buf bytes pos len;
-                Io.Reader.consume reader ~len;
+                Io.Reader.Expert.consume reader ~len;
                 atom reader parser (len - len)
         in
         let+ res =
@@ -115,18 +115,18 @@ module Session = struct
                   if src_pos = String.length sexp then Fiber.return ()
                   else
                     let* size =
-                      let size = Io.Writer.available writer in
+                      let size = Io.Writer.Expert.available writer in
                       if size > 0 then Fiber.return size
                       else
                         let+ () = Io.Writer.flush writer in
-                        Io.Writer.available writer
+                        Io.Writer.Expert.available writer
                     in
                     let dst, { Io.Slice.pos = dst_pos; len } =
-                      Io.Writer.prepare writer ~len:size
+                      Io.Writer.Expert.prepare writer ~len:size
                     in
                     let len = min len (String.length sexp - src_pos) in
                     Bytes.blit_string ~src:sexp ~src_pos ~dst ~dst_pos ~len;
-                    Io.Writer.commit writer ~len;
+                    Io.Writer.Expert.commit writer ~len;
                     write sexp (src_pos + len)
                 in
                 let rec loop = function

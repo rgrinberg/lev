@@ -450,21 +450,18 @@ module Io = struct
   module Writer = struct
     type nonrec t = output open_
 
-    let available t = Buffer.max_available t.buffer
+    module Expert = struct
+      let available t = Buffer.max_available t.buffer
 
-    let prepare =
-      let k t ~len ~dst_pos:pos =
-        let buf = Buffer.buffer t.buffer in
-        (buf, { Slice.pos; len })
-      in
-      fun t ~len -> with_resize_buffer t ~len `Compress k
+      let prepare =
+        let k t ~len ~dst_pos:pos =
+          let buf = Buffer.buffer t.buffer in
+          (buf, { Slice.pos; len })
+        in
+        fun t ~len -> with_resize_buffer t ~len `Compress k
 
-    let commit t ~len = Buffer.commit t.buffer ~len
-
-    let add_substring t str ~pos ~len =
-      Buffer.Bytes.Writer.add_substring t.buffer str ~pos ~len
-
-    let add_string t str = Buffer.Bytes.Writer.add_string t.buffer str
+      let commit t ~len = Buffer.commit t.buffer ~len
+    end
 
     let flush =
       let rec loop t stop_count =
@@ -496,6 +493,11 @@ module Io = struct
           | Write { flush_counter } -> flush_counter + Buffer.length t.buffer
         in
         loop t stop_count
+
+    let add_substring t str ~pos ~len =
+      Buffer.Bytes.Writer.add_substring t.buffer str ~pos ~len
+
+    let add_string t str = Buffer.Bytes.Writer.add_string t.buffer str
   end
 
   let create_gen (type a) fd (mode : a mode) =
@@ -551,47 +553,49 @@ module Io = struct
 
     exception Unavailable
 
-    let buffer t =
-      match Buffer.peek t.buffer with
-      | None -> raise Unavailable
-      | Some { Buffer.Slice.pos; len } ->
-          let b = Buffer.buffer t.buffer in
-          (b, { Slice.pos; len })
+    module Expert = struct
+      let buffer t =
+        match Buffer.peek t.buffer with
+        | None -> raise Unavailable
+        | Some { Buffer.Slice.pos; len } ->
+            let b = Buffer.buffer t.buffer in
+            (b, { Slice.pos; len })
 
-    let consume (t : t) ~len = Buffer.junk t.buffer ~len
+      let consume (t : t) ~len = Buffer.junk t.buffer ~len
 
-    let available t =
-      let eof = match t.kind with Read { eof } -> eof in
-      let available = Buffer.length t.buffer in
-      if available = 0 && eof then `Eof else `Ok available
+      let available t =
+        let eof = match t.kind with Read { eof } -> eof in
+        let available = Buffer.length t.buffer in
+        if available = 0 && eof then `Eof else `Ok available
 
-    let read_char_exn t =
-      let b, { Buffer.Slice.pos; len = _ } = buffer t in
-      let res = Bytes.get b pos in
-      consume t ~len:1;
-      res
-
-    let refill =
-      let rec read t ~len ~dst_pos =
-        let b = Bytes.create len in
-        let* res = Fd.with_ t.fd Read ~f:(fun fd -> Unix.read fd b 0 len) in
-        match res with
-        | Error (Unix.Unix_error (Unix.EAGAIN, _, _)) -> read t ~len ~dst_pos
-        | Ok 0 | Error (Unix.Unix_error (Unix.EBADF, _, _)) ->
-            (match t.kind with Read b -> b.eof <- true);
-            Buffer.commit t.buffer ~len:0;
-            Fiber.return ()
-        | Ok len ->
-            Bytes.blit ~src:b ~src_pos:0 ~dst:(Buffer.buffer t.buffer) ~dst_pos
-              ~len;
-            Buffer.commit t.buffer ~len;
-            Fiber.return ()
-        | Error exn -> reraise exn
-      in
-      fun ?(size = Buffer.default_size) t ->
-        with_resize_buffer t ~len:size `Compress read
+      let refill =
+        let rec read t ~len ~dst_pos =
+          let b = Bytes.create len in
+          let* res = Fd.with_ t.fd Read ~f:(fun fd -> Unix.read fd b 0 len) in
+          match res with
+          | Error (Unix.Unix_error (Unix.EAGAIN, _, _)) -> read t ~len ~dst_pos
+          | Ok 0 | Error (Unix.Unix_error (Unix.EBADF, _, _)) ->
+              (match t.kind with Read b -> b.eof <- true);
+              Buffer.commit t.buffer ~len:0;
+              Fiber.return ()
+          | Ok len ->
+              Bytes.blit ~src:b ~src_pos:0 ~dst:(Buffer.buffer t.buffer)
+                ~dst_pos ~len;
+              Buffer.commit t.buffer ~len;
+              Fiber.return ()
+          | Error exn -> reraise exn
+        in
+        fun ?(size = Buffer.default_size) t ->
+          with_resize_buffer t ~len:size `Compress read
+    end
 
     exception Found of int
+
+    let read_char_exn t =
+      let b, { Buffer.Slice.pos; len = _ } = Expert.buffer t in
+      let res = Bytes.get b pos in
+      Expert.consume t ~len:1;
+      res
 
     let read_line =
       let contents buf =
@@ -610,14 +614,14 @@ module Io = struct
         with Found i -> Some i
       in
       let rec loop t buf =
-        match available t with
+        match Expert.available t with
         | `Eof ->
             Fiber.return (Error (`Partial_eof (Stdlib.Buffer.contents buf)))
         | `Ok 0 ->
-            let* () = refill t in
+            let* () = Expert.refill t in
             loop t buf
         | `Ok _ -> (
-            let b, { Slice.pos; len } = buffer t in
+            let b, { Slice.pos; len } = Expert.buffer t in
             match find_nl b pos len with
             | Some i ->
                 let len = i - pos in
@@ -633,13 +637,13 @@ module Io = struct
         (* we can always call loop, but we do a little optimization to see if we can
            read the line without an extra copy
         *)
-        match available t with
+        match Expert.available t with
         | `Eof -> Fiber.return (Error (`Partial_eof ""))
         | `Ok 0 ->
-            let* () = refill t in
+            let* () = Expert.refill t in
             self t
         | `Ok _ -> (
-            let b, { Slice.pos; len } = buffer t in
+            let b, { Slice.pos; len } = Expert.buffer t in
             match find_nl b pos len with
             | Some i ->
                 let len = i - pos in
@@ -664,14 +668,14 @@ module Io = struct
       let rec loop_buffer t buf remains =
         if remains = 0 then Fiber.return (Ok (Stdlib.Buffer.contents buf))
         else
-          match available t with
+          match Expert.available t with
           | `Eof ->
               Fiber.return (Error (`Partial_eof (Stdlib.Buffer.contents buf)))
           | `Ok 0 ->
-              let* () = refill t in
+              let* () = Expert.refill t in
               loop_buffer t buf remains
           | `Ok _ ->
-              let b, { Slice.pos; len } = buffer t in
+              let b, { Slice.pos; len } = Expert.buffer t in
               let len = min remains len in
               Stdlib.Buffer.add_subbytes buf b pos len;
               Buffer.junk t.buffer ~len;
@@ -681,13 +685,13 @@ module Io = struct
         (* we can always call loop, but we do a little optimization to see if we can
            read the line without an extra copy
         *)
-        match available t with
+        match Expert.available t with
         | `Eof -> Fiber.return (Error (`Partial_eof ""))
         | `Ok 0 ->
-            let* () = refill t in
+            let* () = Expert.refill t in
             self t len
         | `Ok _ ->
-            let b, { Slice.pos; len = avail } = buffer t in
+            let b, { Slice.pos; len = avail } = Expert.buffer t in
             if len <= avail then (
               let res = Bytes.sub b ~pos ~len in
               Buffer.junk t.buffer ~len;
@@ -702,15 +706,15 @@ module Io = struct
 
     let to_string =
       let rec loop t buf =
-        match available t with
+        match Expert.available t with
         | `Eof -> Fiber.return (Stdlib.Buffer.contents buf)
         | `Ok 0 ->
-            let* () = refill t in
+            let* () = Expert.refill t in
             loop t buf
         | `Ok _ ->
-            let b, { Slice.pos; len } = buffer t in
+            let b, { Slice.pos; len } = Expert.buffer t in
             Stdlib.Buffer.add_subbytes buf b pos len;
-            consume t ~len;
+            Expert.consume t ~len;
             loop t buf
       in
       fun t -> loop t (Stdlib.Buffer.create 512)

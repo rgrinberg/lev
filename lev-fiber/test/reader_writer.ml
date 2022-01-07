@@ -103,7 +103,7 @@ let with_pipe_test output f =
             let rec loop pos =
               if pos = len_output then Fiber.return ()
               else
-                let available = Io.Writer.available writer in
+                let available = Io.Writer.Expert.available writer in
                 if available = 0 then
                   let* () = Io.Writer.flush writer in
                   loop pos
