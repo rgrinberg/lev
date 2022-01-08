@@ -333,7 +333,7 @@ CAMLprim value lev_io_create(value v_cb, value v_fd, value v_flags) {
   CAMLreturn(v_io);
 }
 
-CAMLprim value lev_io_modify(value v_io, v_flags) {
+CAMLprim value lev_io_modify(value v_io, value v_flags) {
   CAMLparam2(v_io, v_flags);
   ev_io *io = Ev_io_val(v_io);
   ev_io_modify(io, Int_val(v_flags));
