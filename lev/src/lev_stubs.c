@@ -248,12 +248,15 @@ CAMLprim value lev_ev_create(value v_flags) {
   CAMLreturn(caml_copy_nativeint((intnat)loop));
 }
 
+static void release_lock(EV_P) { caml_release_runtime_system(); }
+
+static void acquire_lock(EV_P) { caml_acquire_runtime_system(); }
+
 CAMLprim value lev_ev_run(value v_ev, value v_run) {
   CAMLparam2(v_ev, v_run);
   struct ev_loop *loop = (struct ev_loop *)Nativeint_val(v_ev);
   int run = Int_val(v_run);
-  ev_set_loop_release_cb(loop, &caml_release_runtime_system,
-                         &caml_acquire_runtime_system);
+  ev_set_loop_release_cb(loop, &release_lock, &acquire_lock);
   bool ret = ev_run(loop, run);
   CAMLreturn(Val_bool(ret));
 }
