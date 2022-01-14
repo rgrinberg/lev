@@ -560,6 +560,14 @@ CAMLprim value lev_periodic_custom_destroy(value v_periodic) {
   CAMLreturn(Val_unit);
 }
 
+#ifdef _WIN32
+
+CAMLprim value lev_stat_create(value v_cb, value v_path, value v_interval) {
+  caml_failwith("unimplemented on windows");
+}
+
+#else
+
 CAMLprim value lev_stat_create(value v_cb, value v_path, value v_interval) {
   CAMLparam3(v_cb, v_path, v_interval);
   CAMLlocal2(v_w, v_cb_applied);
@@ -642,3 +650,5 @@ CAMLprim value lev_stat_stat(value v_w) {
   Field(v, 11) = v_ctime;
   CAMLreturn(v);
 }
+
+#endif

@@ -196,7 +196,10 @@ module Stat : sig
   val stat : t -> Unix.stats
   (** [stat t] is only permitted to be called inside the callback to [create] *)
 
-  val create : ?interval:Timestamp.t -> path:string -> (t -> unit) -> t
+  val create :
+    ( ?interval:Timestamp.t -> path:string -> (t -> unit) -> t,
+      [ `Unimplemented ] )
+    result
 end
 
 module Child : sig

@@ -414,7 +414,10 @@ module Stat = struct
 
   external stat : t -> Unix.stats = "lev_stat_stat"
 
-  let create ?(interval = 0.) ~path f = create (wrap_callback f) path interval
+  let create_unix ?(interval = 0.) ~path f =
+    create (wrap_callback f) path interval
+
+  let create = if Sys.win32 then Error `Unimplemented else Ok create_unix
 end
 
 module Embed = struct
