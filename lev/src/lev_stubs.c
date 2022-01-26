@@ -1,3 +1,4 @@
+#include "config.h"
 #include "ev.h"
 
 #include <stdbool.h>
@@ -270,6 +271,10 @@ static void lev_child_cb(EV_P_ ev_child *w, int revents) {
   CAMLparam0();
   CAMLlocal1(v_status);
   int status = w->rstatus;
+#ifdef _WIN32
+  v_status = caml_alloc_small(1, TAG_WEXITED);
+  Field(v_status, 0) = Val_int(status);
+#else
   if (WIFEXITED(status)) {
     v_status = caml_alloc_small(1, TAG_WEXITED);
     Field(v_status, 0) = Val_int(WEXITSTATUS(status));
@@ -284,6 +289,7 @@ static void lev_child_cb(EV_P_ ev_child *w, int revents) {
   }
   caml_callback2((value)w->data, Val_int(w->rpid), v_status);
   CAMLdrop;
+#endif
 }
 
 static void lev_watcher_cb(EV_P_ ev_watcher *w, int revents) {
