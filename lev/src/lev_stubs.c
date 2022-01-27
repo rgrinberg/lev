@@ -133,8 +133,8 @@ static int compare_watchers(value a, value b) {
   return (int)((char *)Ev_watcher_val(a) - (char *)Ev_watcher_val(b));
 }
 
-static long hash_watcher(value watcher) {
-  return (long)Ev_watcher_val(watcher);
+static intnat hash_watcher(value watcher) {
+  return (intnat)Ev_watcher_val(watcher);
 }
 
 struct periodic_cbs {
