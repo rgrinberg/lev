@@ -6,6 +6,11 @@
 #define HAVE_SYS_INOTIFY_H 1
 #endif
 
+#ifdef _WIN32
+#define HAVE_SYS_SELECT_H 1
+#define HAVE_SELECT 1
+#endif
+
 #if __has_include(<sys/select.h>)
 #define HAVE_SYS_SELECT_H 1
 #define HAVE_SELECT 1
