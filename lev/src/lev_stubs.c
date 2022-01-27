@@ -572,6 +572,10 @@ CAMLprim value lev_stat_create(value v_cb, value v_path, value v_interval) {
   caml_failwith("unimplemented on windows");
 }
 
+CAMLprim value lev_stat_stat(value v_w) {
+  caml_failwith("unimplemented on windows");
+}
+
 #else
 
 CAMLprim value lev_stat_create(value v_cb, value v_path, value v_interval) {
