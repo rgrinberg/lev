@@ -766,8 +766,11 @@ module Io = struct
     fun ?cloexec () : (input t * output t) Fiber.t ->
       Fiber.of_thunk @@ fun () ->
       let r, w = Unix.pipe ?cloexec () in
-      Unix.set_nonblock r;
-      Unix.set_nonblock w;
+      (match blockity with
+      | `Blocking -> ()
+      | `Non_blocking ->
+          Unix.set_nonblock r;
+          Unix.set_nonblock w);
       let* input = create r blockity Input in
       let+ output = create w blockity Output in
       (input, output)
