@@ -394,9 +394,10 @@ module Lev_fd = struct
          | Some ivar -> Queue.push scheduler.queue (Fiber.Fill (ivar, ()))
          | None -> keep_write := false);
         let new_set =
-          Lev.Io.Event.Set.create ~read:!keep_read ~write:!keep_write ()
+          Event.Set.inter nb.events
+            (Event.Set.create ~read:!keep_read ~write:!keep_write ())
         in
-        if not (Lev.Io.Event.Set.equal new_set nb.events) then reset nb new_set
+        if not (Event.Set.equal new_set nb.events) then reset nb new_set
 
   let create ~ref_count fd : t Rc.t Fiber.t =
     let+ scheduler = Fiber.Var.get_exn scheduler in

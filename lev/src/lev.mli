@@ -166,6 +166,7 @@ module Io : sig
       val mem : t -> event -> bool
       val create : ?read:bool -> ?write:bool -> unit -> t
       val add : t -> event -> t
+      val inter : t -> t -> t
     end
     with type event := t
   end
