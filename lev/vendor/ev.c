@@ -238,7 +238,6 @@
 # include <sys/wait.h>
 # include <unistd.h>
 #else
-# include "wait.h"
 # include <io.h>
 # define WIN32_LEAN_AND_MEAN
 # include <winsock2.h>
@@ -3713,9 +3712,7 @@ ev_default_loop (unsigned int flags) EV_NOEXCEPT
       if (ev_backend (EV_A))
         {
 #if EV_CHILD_ENABLE
-#ifndef _WIN32
           ev_signal_init (&childev, childcb, SIGCHLD);
-#endif
           ev_set_priority (&childev, EV_MAXPRI);
           ev_signal_start (EV_A_ &childev);
           ev_unref (EV_A); /* child watcher should not keep loop alive */

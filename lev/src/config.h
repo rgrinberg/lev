@@ -1,6 +1,6 @@
 // TODO port support
+
 #define EV_MULTIPLICITY 1
-#define EV_CHILD_ENABLE 1
 
 #if __has_include(<sys/inotify.h>)
 #define HAVE_SYS_INOTIFY_H 1

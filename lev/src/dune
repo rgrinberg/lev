@@ -1,6 +1,6 @@
 (copy_files# ../vendor/*.c)
 
-(copy_files# ../vendor/{ev,ev_vars,ev_wrap,wait}.h)
+(copy_files# ../vendor/{ev,ev_vars,ev_wrap}.h)
 
 (library
  (public_name lev)
@@ -12,10 +12,6 @@
   (language c)
   (flags :standard -libm)
   (extra_deps
-   wait.h
-   ev.h
-   ev_vars.h
-   ev_wrap.h
    ev_kqueue.c
    ev_epoll.c
    ev_iouring.c
