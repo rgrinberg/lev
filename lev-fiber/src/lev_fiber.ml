@@ -3,6 +3,14 @@ open Fiber.O
 open Lev_fiber_util
 module Timestamp = Lev.Timestamp
 
+type process = { pid : Pid.t; ivar : Unix.process_status Fiber.Ivar.t }
+
+type process_watcher = {
+  mutable process_thread : unit Lazy.t;
+  active : (Pid.t, process) Table.t;
+  mutex : Mutex.t;
+}
+
 type t = {
   loop : Lev.Loop.t;
   queue : Fiber.fill Queue.t;
@@ -10,6 +18,7 @@ type t = {
   async : Lev.Async.t;
   thread_jobs : Fiber.fill Queue.t;
   thread_mutex : Mutex.t;
+  process_watcher : process_watcher option;
 }
 
 type scheduler = t
@@ -38,6 +47,12 @@ module State = struct
   let close t = t := Closed
 end
 
+let finish_job t fill =
+  Mutex.lock t.thread_mutex;
+  Queue.push t.thread_jobs fill;
+  Mutex.unlock t.thread_mutex;
+  Lev.Async.send t.async t.loop
+
 module Thread = struct
   type job =
     | Job :
@@ -60,10 +75,7 @@ module Thread = struct
         | Ok x -> Ok x
         | Error exn -> Error (`Exn exn)
       in
-      Mutex.lock t.thread_mutex;
-      Queue.push t.thread_jobs (Fiber.Fill (ivar, res));
-      Mutex.unlock t.thread_mutex;
-      Lev.Async.send t.async t.loop
+      finish_job t (Fiber.Fill (ivar, res))
     in
     let worker = Worker.create ~spawn_thread ~do_no_raise in
     { worker }
@@ -258,22 +270,40 @@ module Timer = struct
   end
 end
 
-let waitpid ~pid =
+let waitpid_win32 ~pid =
+  let* t = Fiber.Var.get_exn t in
+  let pid = Pid.of_int pid in
+  let watcher =
+    match t.process_watcher with
+    | None -> assert false
+    | Some watcher ->
+        Lazy.force watcher.process_thread;
+        watcher
+  in
+  let ivar = Fiber.Ivar.create () in
+  Mutex.lock watcher.mutex;
+  Table.add_exn watcher.active pid { pid; ivar };
+  Mutex.unlock watcher.mutex;
+  Fiber.Ivar.read ivar
+
+let waitpid_unix create ~pid =
   let* { loop; queue; _ } = Fiber.Var.get_exn t in
   let ivar = Fiber.Ivar.create () in
   let child =
-    match Lev.Child.create with
-    | Error `Unimplemented -> assert false
-    | Ok create ->
-        create
-          (fun t ~pid:_ process_status ->
-            Queue.push queue (Fiber.Fill (ivar, process_status));
-            Lev.Child.stop t loop;
-            Lev.Child.destroy t)
-          (Pid pid) Terminate
+    create
+      (fun t ~pid:_ process_status ->
+        Queue.push queue (Fiber.Fill (ivar, process_status));
+        Lev.Child.stop t loop;
+        Lev.Child.destroy t)
+      (Lev.Child.Pid pid) Lev.Child.Terminate
   in
   Lev.Child.start child loop;
   Fiber.Ivar.read ivar
+
+let waitpid =
+  match Lev.Child.create with
+  | Error `Unimplemented -> waitpid_win32
+  | Ok create -> waitpid_unix create
 
 let signal ~signal =
   let* { loop; queue; _ } = Fiber.Var.get_exn t in
@@ -848,7 +878,10 @@ let yield () =
   Queue.push scheduler.queue (Fiber.Fill (ivar, ()));
   Fiber.Ivar.read ivar
 
+exception Finished of process * Unix.process_status
+
 let run lev_loop ~f =
+  let tref = Fdecl.create Dyn.opaque in
   let thread_jobs = Queue.create () in
   let thread_mutex = Mutex.create () in
   let queue = Queue.create () in
@@ -860,8 +893,49 @@ let run lev_loop ~f =
   in
   Lev.Async.start async lev_loop;
   let f =
+    let process_watcher =
+      match Sys.win32 with
+      | false -> None
+      | true ->
+          let watcher =
+            {
+              active = Table.create (module Pid) 16;
+              mutex = Mutex.create ();
+              process_thread = lazy ();
+            }
+          in
+          let rec run_thread watcher =
+            Mutex.lock watcher.mutex;
+            let result = check_running watcher in
+            Option.iter result ~f:(fun (job, _) ->
+                Table.remove watcher.active job.pid);
+            Mutex.unlock watcher.mutex;
+            Option.iter result ~f:(fun (job, status) ->
+                finish_job (Fdecl.get tref) (Fiber.Fill (job.ivar, status));
+                run_thread watcher);
+            Unix.sleepf 0.05
+          and check_running watcher =
+            try
+              Table.iter watcher.active ~f:(fun (job : process) ->
+                  let pid, status =
+                    Unix.waitpid [ WNOHANG ] (Pid.to_int job.pid)
+                  in
+                  if pid <> 0 then raise_notrace (Finished (job, status)));
+              None
+            with Finished (job, status) -> Some (job, status)
+          in
+          watcher.process_thread <- lazy (run_thread watcher);
+          Some watcher
+    in
     Fiber.Var.set t
-      { loop = lev_loop; queue; async; thread_mutex; thread_jobs }
+      {
+        loop = lev_loop;
+        queue;
+        async;
+        thread_mutex;
+        thread_jobs;
+        process_watcher;
+      }
       f
   in
   let rec events q acc =
@@ -877,7 +951,9 @@ let run lev_loop ~f =
     | None -> (
         let res = Lev.Loop.run loop Once in
         match res with
-        | `No_more_active_watchers -> iter_or_deadlock q
+        | `No_more_active_watchers ->
+            (* TODO incorrect if there are active threads *)
+            iter_or_deadlock q
         | `Otherwise -> iter loop q)
   in
   Fiber.run f ~iter:(fun () -> iter lev_loop queue)
