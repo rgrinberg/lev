@@ -383,6 +383,8 @@ module Child = struct
       match trace with Terminate -> 0 | Terminate_stop_or_continue -> 1
     in
     create cb pid trace
+
+  let create = if Sys.win32 then Error `Unimplemented else Ok create
 end
 
 module Cleanup = struct

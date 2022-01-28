@@ -1,6 +1,8 @@
+open Printf
 open Lev
+module List = ListLabels
 
-let () =
+let%expect_test "child" =
   let loop = Loop.default () in
   let stdin, stdin_w = Unix.pipe ~cloexec:true () in
   let stdout_r, stdout = Unix.pipe ~cloexec:true () in
@@ -16,13 +18,14 @@ let () =
     | Error `Unimplemented -> assert false
     | Ok create ->
         create
-          (fun t ~pid status ->
+          (fun t ~pid:pid' status ->
             Child.stop t loop;
-            match status with
-            | Unix.WEXITED i -> Printf.printf "%d exited with status %d\n" pid i
-            | _ -> assert false)
+            (match status with
+            | Unix.WEXITED i -> printf "exited with status %d\n" i
+            | _ -> assert false);
+            assert (pid = pid'))
           (Pid pid) Terminate
   in
   Child.start child loop;
   Loop.run_until_done loop;
-  Child.destroy child
+  [%expect {| exited with status 42 |}]

@@ -95,7 +95,6 @@ DEF_STOP(cleanup)
 DEF_STOP(io)
 DEF_STOP(timer)
 DEF_STOP(periodic)
-DEF_STOP(child)
 DEF_STOP(signal)
 DEF_STOP(stat)
 DEF_STOP(embed)
@@ -103,6 +102,13 @@ DEF_STOP(idle)
 DEF_STOP(check)
 DEF_STOP(async)
 DEF_STOP(prepare)
+#if EV_CHILD_ENABLE
+DEF_STOP(child)
+#else
+CAMLprim value lev_child_stop(value v_w, value v_ev) {
+  caml_failwith("unimplemented");
+}
+#endif
 
 #define DEF_START(__name)                                                      \
   CAMLprim value lev_##__name##_start(value v_w, value v_ev) {                 \
@@ -117,7 +123,6 @@ DEF_START(cleanup)
 DEF_START(io)
 DEF_START(timer)
 DEF_START(periodic)
-DEF_START(child)
 DEF_START(signal)
 DEF_START(stat)
 DEF_START(embed)
@@ -125,6 +130,13 @@ DEF_START(idle)
 DEF_START(check)
 DEF_START(async)
 DEF_START(prepare)
+#if EV_CHILD_ENABLE
+DEF_START(child)
+#else
+CAMLprim value lev_child_start(value v_w, value v_ev) {
+  caml_failwith("unimplemented");
+}
+#endif
 
 // TODO garbage collect loops themselves
 
@@ -264,26 +276,6 @@ CAMLprim value lev_ev_run(value v_ev, value v_run) {
 static void lev_io_cb(EV_P_ ev_io *w, int revents) {
   int fd = w->fd;
   caml_callback2((value)w->data, Val_int(fd), Val_int(revents));
-}
-
-static void lev_child_cb(EV_P_ ev_child *w, int revents) {
-  CAMLparam0();
-  CAMLlocal1(v_status);
-  int status = w->rstatus;
-  if (WIFEXITED(status)) {
-    v_status = caml_alloc_small(1, TAG_WEXITED);
-    Field(v_status, 0) = Val_int(WEXITSTATUS(status));
-  } else if (WIFSTOPPED(status)) {
-    v_status = caml_alloc_small(1, TAG_WSTOPPED);
-    Field(v_status, 0) =
-        Val_int(caml_rev_convert_signal_number(WSTOPSIG(status)));
-  } else {
-    v_status = caml_alloc_small(1, TAG_WSIGNALED);
-    Field(v_status, 0) =
-        Val_int(caml_rev_convert_signal_number(WTERMSIG(status)));
-  }
-  caml_callback2((value)w->data, Val_int(w->rpid), v_status);
-  CAMLdrop;
 }
 
 static void lev_watcher_cb(EV_P_ ev_watcher *w, int revents) {
@@ -443,6 +435,27 @@ DEF_SIMPLE_CREATE(check)
 DEF_SIMPLE_CREATE(prepare)
 DEF_SIMPLE_CREATE(idle)
 
+#if EV_CHILD_ENABLE
+static void lev_child_cb(EV_P_ ev_child *w, int revents) {
+  CAMLparam0();
+  CAMLlocal1(v_status);
+  int status = w->rstatus;
+  if (WIFEXITED(status)) {
+    v_status = caml_alloc_small(1, TAG_WEXITED);
+    Field(v_status, 0) = Val_int(WEXITSTATUS(status));
+  } else if (WIFSTOPPED(status)) {
+    v_status = caml_alloc_small(1, TAG_WSTOPPED);
+    Field(v_status, 0) =
+        Val_int(caml_rev_convert_signal_number(WSTOPSIG(status)));
+  } else {
+    v_status = caml_alloc_small(1, TAG_WSIGNALED);
+    Field(v_status, 0) =
+        Val_int(caml_rev_convert_signal_number(WTERMSIG(status)));
+  }
+  caml_callback2((value)w->data, Val_int(w->rpid), v_status);
+  CAMLdrop;
+}
+
 CAMLprim value lev_child_create(value v_cb, value v_pid, value v_trace) {
   CAMLparam3(v_cb, v_pid, v_trace);
   int pid = Int_val(v_pid);
@@ -457,6 +470,11 @@ CAMLprim value lev_child_create(value v_cb, value v_pid, value v_trace) {
   caml_register_generational_global_root((value *)(&(child->data)));
   CAMLreturn(v_child);
 }
+#else
+CAMLprim value lev_child_create(value v_cb, value v_pid, value v_trace) {
+  caml_failwith("unimplemented");
+}
+#endif
 
 CAMLprim value lev_embed_sweep(value v_embed, value v_loop) {
   CAMLparam2(v_loop, v_embed);

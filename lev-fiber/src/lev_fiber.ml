@@ -262,12 +262,15 @@ let waitpid ~pid =
   let* { loop; queue; _ } = Fiber.Var.get_exn t in
   let ivar = Fiber.Ivar.create () in
   let child =
-    Lev.Child.create
-      (fun t ~pid:_ process_status ->
-        Queue.push queue (Fiber.Fill (ivar, process_status));
-        Lev.Child.stop t loop;
-        Lev.Child.destroy t)
-      (Pid pid) Terminate
+    match Lev.Child.create with
+    | Error `Unimplemented -> assert false
+    | Ok create ->
+        create
+          (fun t ~pid:_ process_status ->
+            Queue.push queue (Fiber.Fill (ivar, process_status));
+            Lev.Child.stop t loop;
+            Lev.Child.destroy t)
+          (Pid pid) Terminate
   in
   Lev.Child.start child loop;
   Fiber.Ivar.read ivar
