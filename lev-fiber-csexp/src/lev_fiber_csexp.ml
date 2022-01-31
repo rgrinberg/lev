@@ -105,7 +105,7 @@ module Session = struct
             (try
                (* TODO this hack is temporary until we get rid of dune rpc init *)
                let fd = Io.fd out_channel in
-               Unix.shutdown fd Unix.SHUTDOWN_ALL
+               Unix.shutdown (Lev_fiber.Fd.fd fd) Unix.SHUTDOWN_ALL
              with Unix.Unix_error (_, _, _) -> ());
             close t;
             Fiber.return ()
@@ -140,7 +140,7 @@ end
 
 let connect fd sockaddr =
   let* () = Lev_fiber.Socket.connect fd sockaddr in
-  let+ i, o = Lev_fiber.Io.create_rw fd `Non_blocking in
+  let+ i, o = Lev_fiber.Io.create_rw fd in
   Session.create ~socket:true i o
 
 let serve server ~f =

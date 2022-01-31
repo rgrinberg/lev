@@ -44,7 +44,10 @@ let serve session =
 let run sock_path =
   let delete () = try Unix.unlink sock_path with Unix.Unix_error _ -> () in
   delete ();
-  let socket = Unix.socket ~cloexec:true Unix.PF_UNIX Unix.SOCK_STREAM 0 in
+  let socket =
+    let socket = Unix.socket ~cloexec:true Unix.PF_UNIX Unix.SOCK_STREAM 0 in
+    Lev_fiber.Fd.create socket (`Non_blocking false)
+  in
   let addr = Unix.ADDR_UNIX sock_path in
   let* server = Socket.Server.create ~backlog:128 socket addr in
   at_exit delete;

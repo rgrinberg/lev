@@ -7,13 +7,17 @@ let%expect_test "server & client" =
   (try Unix.unlink path with Unix.Unix_error _ -> ());
   let sockaddr = Unix.ADDR_UNIX path in
   let domain = Unix.domain_of_sockaddr sockaddr in
-  let socket () = Unix.socket ~cloexec:true domain Unix.SOCK_STREAM 0 in
+  let socket () =
+    Lev_fiber.Fd.create
+      (Unix.socket ~cloexec:true domain Unix.SOCK_STREAM 0)
+      (`Non_blocking false)
+  in
   let run () =
     let ready_client = Fiber.Ivar.create () in
     let server () =
       print_endline "server: starting";
       let fd = socket () in
-      Unix.setsockopt fd Unix.SO_REUSEADDR true;
+      Unix.setsockopt (Lev_fiber.Fd.fd fd) Unix.SO_REUSEADDR true;
       let* server = Socket.Server.create fd sockaddr ~backlog:10 in
       print_endline "server: created";
       let* () = Fiber.Ivar.fill ready_client () in
@@ -38,13 +42,13 @@ let%expect_test "server & client" =
       print_endline "client: starting";
       let* () = Socket.connect fd sockaddr in
       print_endline "client: successfully connected";
-      let* i, o = Io.create_rw fd `Non_blocking in
+      let* i, o = Io.create_rw fd in
       let* () =
         Io.with_write o ~f:(fun w ->
             Io.Writer.add_string w "ping";
             Io.Writer.flush w)
       in
-      Unix.shutdown fd SHUTDOWN_SEND;
+      Unix.shutdown (Lev_fiber.Fd.fd fd) SHUTDOWN_SEND;
       Io.close o;
       let+ result = Io.with_read i ~f:Io.Reader.to_string in
       printfn "client: received %S" result;

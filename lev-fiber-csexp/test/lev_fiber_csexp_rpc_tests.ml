@@ -7,7 +7,11 @@ let%expect_test "serve/connect" =
   (try Unix.unlink path with Unix.Unix_error _ -> ());
   let sockaddr = Unix.ADDR_UNIX path in
   let domain = Unix.domain_of_sockaddr sockaddr in
-  let socket () = Unix.socket ~cloexec:true domain Unix.SOCK_STREAM 0 in
+  let socket () =
+    Lev_fiber.Fd.create
+      (Unix.socket ~cloexec:true domain Unix.SOCK_STREAM 0)
+      (`Non_blocking false)
+  in
   let run () =
     let ready_client = Fiber.Ivar.create () in
     let client () =
@@ -27,7 +31,7 @@ let%expect_test "serve/connect" =
       Csexp_rpc.Session.write session None
     and server () =
       let fd = socket () in
-      Unix.setsockopt fd Unix.SO_REUSEADDR true;
+      Unix.setsockopt (Lev_fiber.Fd.fd fd) Unix.SO_REUSEADDR true;
       let* server = Lev_fiber.Socket.Server.create fd sockaddr ~backlog:10 in
       printfn "server: started";
       let* () = Fiber.Ivar.fill ready_client () in

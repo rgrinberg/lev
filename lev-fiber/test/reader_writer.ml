@@ -70,8 +70,8 @@ let%expect_test "write with resize" =
 let%expect_test "blocking pipe" =
   let fdr, fdw = Unix.pipe ~cloexec:true () in
   let run () =
-    let* r = Io.create fdr `Blocking Input in
-    let* w = Io.create fdw `Blocking Output in
+    let* r = Io.create (Fd.create fdr `Blocking) Input in
+    let* w = Io.create (Fd.create fdw `Blocking) Output in
     let writer () =
       let+ () =
         Io.with_write w ~f:(fun writer ->

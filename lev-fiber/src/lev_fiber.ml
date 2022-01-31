@@ -346,11 +346,54 @@ end = struct
           a.finalize ())
 end
 
+module Fd = struct
+  type kind = Blocking | Non_blocking of { mutable set : bool }
+  type t = { fd : Unix.file_descr; kind : kind; mutable closed : bool }
+
+  let fd t = t.fd
+
+  let close t =
+    if not t.closed then (
+      t.closed <- true;
+      Unix.close t.fd)
+
+  let create' fd kind = { kind; fd; closed = false }
+
+  let create fd kind =
+    let kind =
+      match kind with
+      | `Blocking -> Blocking
+      | `Non_blocking set -> Non_blocking { set }
+    in
+    create' fd kind
+
+  let set_nonblock t =
+    match t.kind with
+    | Blocking -> ()
+    | Non_blocking nb ->
+        if not nb.set then (
+          Unix.set_nonblock t.fd;
+          nb.set <- true)
+
+  let pipe =
+    if Sys.win32 then fun ?cloexec () ->
+      let r, w = Unix.pipe ?cloexec () in
+      ( { fd = r; kind = Blocking; closed = false },
+        { fd = w; kind = Blocking; closed = false } )
+    else fun ?cloexec () ->
+      let r, w = Unix.pipe ?cloexec () in
+      Unix.set_nonblock r;
+      Unix.set_nonblock w;
+      ( { fd = r; kind = Non_blocking { set = true }; closed = false },
+        { fd = w; kind = Non_blocking { set = true }; closed = false } )
+end
+
 module Lev_fd = struct
   module Event = Lev.Io.Event
 
   type t = {
     io : Lev.Io.t;
+    fd : Fd.t;
     scheduler : scheduler;
     mutable events : Event.Set.t;
     read : unit Fiber.Ivar.t Queue.t;
@@ -362,8 +405,6 @@ module Lev_fd = struct
     Lev.Io.stop nb.io nb.scheduler.loop;
     Lev.Io.modify nb.io nb.events;
     Lev.Io.start nb.io nb.scheduler.loop
-
-  let fd t = Lev.Io.fd t.io
 
   let await t (what : Lev.Io.Event.t) =
     if not (Event.Set.mem t.events what) then
@@ -399,17 +440,18 @@ module Lev_fd = struct
         in
         if not (Event.Set.equal new_set nb.events) then reset nb new_set
 
-  let create ~ref_count fd : t Rc.t Fiber.t =
+  let create ~ref_count (fd : Fd.t) : t Rc.t Fiber.t =
     let+ scheduler = Fiber.Var.get_exn scheduler in
     let t : t Rc.t Fdecl.t = Fdecl.create Dyn.opaque in
     let events = Event.Set.create () in
-    let io = Lev.Io.create (make_cb t scheduler) fd events in
+    let io = Lev.Io.create (make_cb t scheduler) fd.fd events in
     Fdecl.set t
       (Rc.create
          ~finalize:(make_finalizer scheduler.loop io)
          ~count:ref_count
          {
            events;
+           fd;
            scheduler;
            io;
            read = Queue.create ();
@@ -430,41 +472,37 @@ module Io = struct
     | Write : { mutable flush_counter : int } -> output kind
     | Read : { mutable eof : bool } -> input kind
 
-  module Fd = struct
-    type t =
-      | Blocking of Thread.t * Unix.file_descr Rc.t
-      | Non_blocking of Lev_fd.t Rc.t
+  type fd = Blocking of Thread.t * Fd.t Rc.t | Non_blocking of Lev_fd.t Rc.t
 
-    let with_ t (kind : Lev.Io.Event.t) ~f =
-      match t with
-      | Non_blocking lev_fd ->
-          let lev_fd = Rc.get_exn lev_fd in
-          let+ () = Lev_fd.await lev_fd kind in
-          Result.try_with (fun () -> f (Lev_fd.fd lev_fd))
-      | Blocking (th, fd) -> (
-          let fd = Rc.get_exn fd in
-          let* task = Thread.task th ~f:(fun () -> f fd) in
-          let+ res = Thread.await task in
-          match res with
-          | Ok _ as s -> s
-          | Error `Cancelled -> assert false
-          | Error (`Exn exn) -> Error exn.exn)
+  let with_ fd (kind : Lev.Io.Event.t) ~f =
+    match fd with
+    | Non_blocking lev_fd ->
+        let lev_fd = Rc.get_exn lev_fd in
+        let+ () = Lev_fd.await lev_fd kind in
+        Result.try_with (fun () -> f lev_fd.fd)
+    | Blocking (th, fd) -> (
+        let fd = Rc.get_exn fd in
+        let* task = Thread.task th ~f:(fun () -> f fd) in
+        let+ res = Thread.await task in
+        match res with
+        | Ok _ as s -> s
+        | Error `Cancelled -> assert false
+        | Error (`Exn exn) -> Error exn.exn)
 
-    let release t =
-      match t with
-      | Non_blocking fd -> Rc.release fd
-      | Blocking (th, fd) ->
-          Thread.close th;
-          Rc.release fd
-  end
+  let release t =
+    match t with
+    | Non_blocking fd -> Rc.release fd
+    | Blocking (th, fd) ->
+        Thread.close th;
+        Rc.release fd
 
-  type 'a open_ = { mutable buffer : Buffer.t; kind : 'a kind; fd : Fd.t }
+  type 'a open_ = { mutable buffer : Buffer.t; kind : 'a kind; fd : fd }
   type 'a t = 'a open_ State.t
 
   let fd (t : _ t) =
     match (State.check_open t).fd with
     | Blocking (_, fd) -> Rc.get_exn fd
-    | Non_blocking fd -> Lev_fd.fd (Rc.get_exn fd)
+    | Non_blocking fd -> (Rc.get_exn fd).fd
 
   let rec with_resize_buffer t ~len reserve_fail k =
     match Buffer.reserve t.buffer ~len with
@@ -507,11 +545,11 @@ module Io = struct
         else
           let buffer = Buffer.buffer t.buffer in
           let* res =
-            Fd.with_ t.fd Write ~f:(fun fd ->
+            with_ t.fd Write ~f:(fun fd ->
                 match Buffer.peek t.buffer with
                 | None -> ()
                 | Some { Slice.pos; len } -> (
-                    let len = Unix.single_write fd buffer pos len in
+                    let len = Unix.single_write fd.fd buffer pos len in
                     Buffer.junk t.buffer ~len;
                     match t.kind with
                     | Write t -> t.flush_counter <- t.flush_counter + len))
@@ -543,35 +581,35 @@ module Io = struct
     in
     State.create { buffer; fd; kind }
 
-  let create (type a) fd blockity (mode : a mode) =
-    match blockity with
-    | `Non_blocking ->
+  let create (type a) (fd : Fd.t) (mode : a mode) =
+    match fd.kind with
+    | Non_blocking _ ->
         let+ fd = Lev_fd.create ~ref_count:1 fd in
-        create_gen (Fd.Non_blocking fd) mode
-    | `Blocking ->
+        create_gen (Non_blocking fd) mode
+    | Blocking ->
         let+ thread = Thread.create () in
-        let fd = Rc.create ~count:1 ~finalize:(fun () -> Unix.close fd) fd in
-        create_gen (Fd.Blocking (thread, fd)) mode
+        let fd = Rc.create ~count:1 ~finalize:(fun () -> Fd.close fd) fd in
+        create_gen (Blocking (thread, fd)) mode
 
-  let create_rw fd blockity : (input t * output t) Fiber.t =
-    match blockity with
-    | `Non_blocking ->
+  let create_rw (fd : Fd.t) : (input t * output t) Fiber.t =
+    match fd.kind with
+    | Non_blocking _ ->
         let+ fd =
           let+ fd = Lev_fd.create ~ref_count:2 fd in
-          Fd.Non_blocking fd
+          Non_blocking fd
         in
         let r = create_gen fd Input in
         let w = create_gen fd Output in
         (r, w)
-    | `Blocking ->
-        let fd = Rc.create ~count:2 ~finalize:(fun () -> Unix.close fd) fd in
+    | Blocking ->
+        let fd = Rc.create ~count:2 ~finalize:(fun () -> Fd.close fd) fd in
         let* r =
           let+ thread = Thread.create () in
-          create_gen (Fd.Blocking (thread, fd)) Input
+          create_gen (Blocking (thread, fd)) Input
         in
         let+ w =
           let+ thread = Thread.create () in
-          create_gen (Fd.Blocking (thread, fd)) Output
+          create_gen (Blocking (thread, fd)) Output
         in
         (r, w)
 
@@ -579,7 +617,7 @@ module Io = struct
     match !t with
     | State.Closed -> ()
     | Open o ->
-        Fd.release o.fd;
+        release o.fd;
         t := Closed
 
   module Reader = struct
@@ -605,7 +643,7 @@ module Io = struct
       let refill =
         let rec read t ~len ~dst_pos =
           let b = Bytes.create len in
-          let* res = Fd.with_ t.fd Read ~f:(fun fd -> Unix.read fd b 0 len) in
+          let* res = with_ t.fd Read ~f:(fun fd -> Unix.read fd.fd b 0 len) in
           match res with
           | Error (Unix.Unix_error (Unix.EAGAIN, _, _)) -> read t ~len ~dst_pos
           | Ok 0 | Error (Unix.Unix_error (Unix.EBADF, _, _)) ->
@@ -762,19 +800,12 @@ module Io = struct
     let t = State.check_open t in
     f t
 
-  let pipe =
-    let blockity = if Sys.win32 then `Blocking else `Non_blocking in
-    fun ?cloexec () : (input t * output t) Fiber.t ->
-      Fiber.of_thunk @@ fun () ->
-      let r, w = Unix.pipe ?cloexec () in
-      (match blockity with
-      | `Blocking -> ()
-      | `Non_blocking ->
-          Unix.set_nonblock r;
-          Unix.set_nonblock w);
-      let* input = create r blockity Input in
-      let+ output = create w blockity Output in
-      (input, output)
+  let pipe ?cloexec () : (input t * output t) Fiber.t =
+    Fiber.of_thunk @@ fun () ->
+    let r, w = Fd.pipe ?cloexec () in
+    let* input = create r Input in
+    let+ output = create w Output in
+    (input, output)
 end
 
 module Socket = struct
@@ -792,40 +823,40 @@ module Socket = struct
     Lev.Io.start io scheduler.loop;
     Fiber.Ivar.read ivar
 
-  let connect fd sock =
+  let connect (fd : Fd.t) sock =
     let* scheduler = Fiber.Var.get_exn scheduler in
-    Unix.set_nonblock fd;
-    match Unix.connect fd sock with
+    Fd.set_nonblock fd;
+    match Unix.connect fd.fd sock with
     | () -> Fiber.return ()
     | exception Unix.Unix_error (Unix.EISCONN, _, _) -> Fiber.return ()
     | exception Unix.Unix_error (Unix.EINPROGRESS, _, _) -> (
-        let+ () = writeable_fd scheduler fd in
-        match Unix.getsockopt_error fd with
+        let+ () = writeable_fd scheduler fd.fd in
+        match Unix.getsockopt_error fd.fd with
         | None -> ()
         | Some err -> raise (Unix.Unix_error (err, "connect", "")))
 
   module Server = struct
     type t = {
-      fd : Unix.file_descr;
+      fd : Fd.t;
       pool : Fiber.Pool.t;
       io : Lev.Io.t;
       mutable close : bool;
       mutable await : unit Fiber.Ivar.t;
     }
 
-    let create fd sockaddr ~backlog =
+    let create (fd : Fd.t) sockaddr ~backlog =
       let+ scheduler = Fiber.Var.get_exn scheduler in
       let pool = Fiber.Pool.create () in
-      Unix.set_nonblock fd;
-      Unix.bind fd sockaddr;
-      Unix.listen fd backlog;
+      Fd.set_nonblock fd;
+      Unix.bind fd.fd sockaddr;
+      Unix.listen fd.fd backlog;
       let t = Fdecl.create Dyn.opaque in
       let io =
         Lev.Io.create
           (fun _ _ _ ->
             let t = Fdecl.get t in
             Queue.push scheduler.queue (Fiber.Fill (t.await, ())))
-          fd
+          fd.fd
           (Lev.Io.Event.Set.create ~read:true ())
       in
       Fdecl.set t { pool; await = Fiber.Ivar.create (); close = false; fd; io };
@@ -835,7 +866,7 @@ module Socket = struct
       if t.close then Fiber.return ()
       else
         let* scheduler = Fiber.Var.get_exn scheduler in
-        Unix.close t.fd;
+        Fd.close t.fd;
         Lev.Io.stop t.io scheduler.loop;
         Lev.Io.destroy t.io;
         t.close <- true;
@@ -843,14 +874,14 @@ module Socket = struct
         Fiber.Ivar.fill t.await ()
 
     module Session = struct
-      type t = { fd : Unix.file_descr; sockaddr : Unix.sockaddr }
+      type t = { fd : Fd.t; sockaddr : Unix.sockaddr }
 
       let fd t = t.fd
       let sockaddr t = t.sockaddr
 
       let io t =
-        Unix.set_nonblock t.fd;
-        Io.create_rw t.fd `Non_blocking
+        Fd.set_nonblock t.fd;
+        Io.create_rw t.fd
     end
 
     let serve =
@@ -861,7 +892,8 @@ module Socket = struct
         | false ->
             t.await <- Fiber.Ivar.create ();
             let session =
-              let fd, sockaddr = Unix.accept ~cloexec:true t.fd in
+              let fd, sockaddr = Unix.accept ~cloexec:true t.fd.fd in
+              let fd = Fd.create' fd (Non_blocking { set = false }) in
               { Session.fd; sockaddr }
             in
             let* () = Fiber.Pool.task t.pool ~f:(fun () -> f session) in

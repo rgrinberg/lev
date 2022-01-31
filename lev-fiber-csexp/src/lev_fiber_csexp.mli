@@ -12,6 +12,12 @@ module Session : sig
   type t
   (** Rpc session backed by two threads. *)
 
+  val create :
+    socket:bool ->
+    Lev_fiber.Io.input Lev_fiber.Io.t ->
+    Lev_fiber.Io.output Lev_fiber.Io.t ->
+    t
+
   (* [write t x] writes the s-expression when [x] is [Some sexp], and closes the
      session if [x = None ] *)
   val write : t -> Csexp.t list option -> unit Fiber.t
@@ -21,7 +27,7 @@ module Session : sig
       will return [None] *)
 end
 
-val connect : Unix.file_descr -> Unix.sockaddr -> Session.t Fiber.t
+val connect : Lev_fiber.Fd.t -> Unix.sockaddr -> Session.t Fiber.t
 
 val serve :
   Lev_fiber.Socket.Server.t -> f:(Session.t -> unit Fiber.t) -> unit Fiber.t

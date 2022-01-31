@@ -54,21 +54,22 @@ module Thread : sig
   val close : t -> unit
 end
 
+module Fd : sig
+  type t
+
+  val create : Unix.file_descr -> [ `Blocking | `Non_blocking of bool ] -> t
+  val fd : t -> Unix.file_descr
+end
+
 module Io : sig
   type input = Input
   type output = Output
   type 'a mode = Input : input mode | Output : output mode
   type 'a t
 
-  val fd : _ t -> Unix.file_descr
-
-  val create :
-    Unix.file_descr -> [ `Blocking | `Non_blocking ] -> 'a mode -> 'a t Fiber.t
-
-  val create_rw :
-    Unix.file_descr ->
-    [ `Blocking | `Non_blocking ] ->
-    (input t * output t) Fiber.t
+  val fd : _ t -> Fd.t
+  val create : Fd.t -> 'a mode -> 'a t Fiber.t
+  val create_rw : Fd.t -> (input t * output t) Fiber.t
 
   module Slice : sig
     type t = { pos : int; len : int }
@@ -122,13 +123,13 @@ module Socket : sig
   module Server : sig
     type t
 
-    val create : Unix.file_descr -> Unix.sockaddr -> backlog:int -> t Fiber.t
+    val create : Fd.t -> Unix.sockaddr -> backlog:int -> t Fiber.t
     val close : t -> unit Fiber.t
 
     module Session : sig
       type t
 
-      val fd : t -> Unix.file_descr
+      val fd : t -> Fd.t
       val sockaddr : t -> Unix.sockaddr
       val io : t -> (Io.input Io.t * Io.output Io.t) Fiber.t
     end
@@ -136,7 +137,7 @@ module Socket : sig
     val serve : t -> f:(Session.t -> unit Fiber.t) -> unit Fiber.t
   end
 
-  val connect : Unix.file_descr -> Unix.sockaddr -> unit Fiber.t
+  val connect : Fd.t -> Unix.sockaddr -> unit Fiber.t
 end
 
 val yield : unit -> unit Fiber.t
