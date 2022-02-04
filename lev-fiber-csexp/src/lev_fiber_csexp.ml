@@ -80,10 +80,10 @@ module Session = struct
                 let bytes, { Io.Slice.pos; len = buf_len } =
                   Io.Reader.Expert.buffer reader
                 in
-                let len = min len buf_len in
-                Buffer.add_subbytes buf bytes pos len;
-                Io.Reader.Expert.consume reader ~len;
-                atom reader parser (len - len)
+                let len_read = min len buf_len in
+                Buffer.add_subbytes buf bytes pos len_read;
+                Io.Reader.Expert.consume reader ~len:len_read;
+                atom reader parser (len - len_read)
         in
         let+ res =
           Io.with_read in_channel ~f:(fun reader -> loop reader Stack.Empty)
