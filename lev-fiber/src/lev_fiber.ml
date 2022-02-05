@@ -806,6 +806,45 @@ module Io = struct
     let* input = create r Input in
     let+ output = create w Output in
     (input, output)
+
+  module Lazy_fiber : sig
+    type 'a t
+
+    val create : (unit -> 'a Fiber.t) -> 'a t
+    val force : 'a t -> 'a Fiber.t
+  end = struct
+    type 'a t = {
+      value : 'a Fiber.Ivar.t;
+      mutable f : (unit -> 'a Fiber.t) option;
+    }
+
+    let create f = { f = Some f; value = Fiber.Ivar.create () }
+
+    let force t =
+      let open Fiber.O in
+      match t.f with
+      | None -> Fiber.Ivar.read t.value
+      | Some f ->
+          Fiber.of_thunk (fun () ->
+              t.f <- None;
+              let* v = f () in
+              let+ () = Fiber.Ivar.fill t.value v in
+              v)
+  end
+
+  let make_std_fd fd kind =
+    Lazy_fiber.create (fun () ->
+        let blockity =
+          if Sys.win32 then `Blocking
+          else (
+            Unix.set_nonblock fd;
+            `Non_blocking true)
+        in
+        create (Fd.create fd blockity) kind)
+
+  let stdin = Lazy_fiber.force (make_std_fd Unix.stdin Input)
+  let stderr = Lazy_fiber.force (make_std_fd Unix.stderr Output)
+  let stdout = Lazy_fiber.force (make_std_fd Unix.stdout Output)
 end
 
 module Socket = struct

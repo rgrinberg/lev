@@ -117,6 +117,15 @@ module Io : sig
   val with_write : output t -> f:(Writer.t -> 'a Fiber.t) -> 'a Fiber.t
   val close : 'a t -> unit
   val pipe : ?cloexec:bool -> unit -> (input t * output t) Fiber.t
+
+  val stdin : input t Fiber.t
+  (** [Unix.stdin] wrapped with [Io.t] *)
+
+  val stderr : output t Fiber.t
+  (** [Unix.stderr] wrapped with [Io.t] *)
+
+  val stdout : output t Fiber.t
+  (** [Unix.stdout] wrapped with [Io.t] *)
 end
 
 module Socket : sig
