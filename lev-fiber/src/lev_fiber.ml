@@ -157,29 +157,30 @@ module Timer = struct
     type task = elt Removable_queue.node ref
 
     let task (t : t) : task Fiber.t =
-      match !t with
-      | Stopped -> Code_error.raise "Wheel.task" []
-      | Running t ->
-          let now = Lev.Loop.now t.scheduler.loop in
-          let data =
-            {
-              wheel = t;
-              ivar = Fiber.Ivar.create ();
-              scheduled = now;
-              filled = false;
-            }
-          in
-          let res = Removable_queue.push t.queue data in
-          let+ () =
-            match t.waiting with
-            | None -> Fiber.return ()
-            | Some ivar ->
-                if t.waiting_filled then Fiber.return ()
-                else (
-                  t.waiting_filled <- true;
-                  Fiber.Ivar.fill ivar ())
-          in
-          ref res
+      Fiber.of_thunk (fun () ->
+          match !t with
+          | Stopped -> Code_error.raise "Wheel.task" []
+          | Running t ->
+              let now = Lev.Loop.now t.scheduler.loop in
+              let data =
+                {
+                  wheel = t;
+                  ivar = Fiber.Ivar.create ();
+                  scheduled = now;
+                  filled = false;
+                }
+              in
+              let res = Removable_queue.push t.queue data in
+              let+ () =
+                match t.waiting with
+                | None -> Fiber.return ()
+                | Some ivar ->
+                    if t.waiting_filled then Fiber.return ()
+                    else (
+                      t.waiting_filled <- true;
+                      Fiber.Ivar.fill ivar ())
+              in
+              ref res)
 
     let reset (task : task) =
       let task' = Removable_queue.data !task in
@@ -191,16 +192,18 @@ module Timer = struct
         task := new_task)
 
     let await (task : task) =
-      let task = Removable_queue.data !task in
-      Fiber.Ivar.read task.ivar
+      Fiber.of_thunk (fun () ->
+          let task = Removable_queue.data !task in
+          Fiber.Ivar.read task.ivar)
 
     let cancel (node : task) =
-      let task = Removable_queue.data !node in
-      if task.filled then Fiber.return ()
-      else (
-        task.filled <- true;
-        Removable_queue.remove !node;
-        Fiber.Ivar.fill task.ivar `Cancelled)
+      Fiber.of_thunk (fun () ->
+          let task = Removable_queue.data !node in
+          if task.filled then Fiber.return ()
+          else (
+            task.filled <- true;
+            Removable_queue.remove !node;
+            Fiber.Ivar.fill task.ivar `Cancelled))
 
     let rec run t =
       match !t with
@@ -244,6 +247,8 @@ module Timer = struct
               in
               run t)
 
+    let run t = Fiber.of_thunk (fun () -> run t)
+
     let stop =
       let rec cancel_all r =
         match Removable_queue.pop r.queue with
@@ -258,15 +263,16 @@ module Timer = struct
             cancel_all r
       in
       fun t ->
-        match !t with
-        | Stopped -> Fiber.return ()
-        | Running r -> (
-            t := Stopped;
-            let* () = cancel_all r in
-            match r.waiting with
-            | Some _ when r.waiting_filled -> Fiber.return ()
-            | None -> Fiber.return ()
-            | Some w -> Fiber.Ivar.fill w ())
+        Fiber.of_thunk (fun () ->
+            match !t with
+            | Stopped -> Fiber.return ()
+            | Running r -> (
+                t := Stopped;
+                let* () = cancel_all r in
+                match r.waiting with
+                | Some _ when r.waiting_filled -> Fiber.return ()
+                | None -> Fiber.return ()
+                | Some w -> Fiber.Ivar.fill w ()))
   end
 end
 
@@ -407,12 +413,13 @@ module Lev_fd = struct
     Lev.Io.start nb.io nb.scheduler.loop
 
   let await t (what : Lev.Io.Event.t) =
-    if not (Event.Set.mem t.events what) then
-      reset t (Event.Set.add t.events what);
-    let ivar = Fiber.Ivar.create () in
-    let q = match what with Write -> t.write | Read -> t.read in
-    Queue.push q ivar;
-    Fiber.Ivar.read ivar
+    Fiber.of_thunk (fun () ->
+        if not (Event.Set.mem t.events what) then
+          reset t (Event.Set.add t.events what);
+        let ivar = Fiber.Ivar.create () in
+        let q = match what with Write -> t.write | Read -> t.read in
+        Queue.push q ivar;
+        Fiber.Ivar.read ivar)
 
   let make_finalizer loop io () =
     Lev.Io.stop io loop;
@@ -475,19 +482,20 @@ module Io = struct
   type fd = Blocking of Thread.t * Fd.t Rc.t | Non_blocking of Lev_fd.t Rc.t
 
   let with_ fd (kind : Lev.Io.Event.t) ~f =
-    match fd with
-    | Non_blocking lev_fd ->
-        let lev_fd = Rc.get_exn lev_fd in
-        let+ () = Lev_fd.await lev_fd kind in
-        Result.try_with (fun () -> f lev_fd.fd)
-    | Blocking (th, fd) -> (
-        let fd = Rc.get_exn fd in
-        let* task = Thread.task th ~f:(fun () -> f fd) in
-        let+ res = Thread.await task in
-        match res with
-        | Ok _ as s -> s
-        | Error `Cancelled -> assert false
-        | Error (`Exn exn) -> Error exn.exn)
+    Fiber.of_thunk (fun () ->
+        match fd with
+        | Non_blocking lev_fd ->
+            let lev_fd = Rc.get_exn lev_fd in
+            let+ () = Lev_fd.await lev_fd kind in
+            Result.try_with (fun () -> f lev_fd.fd)
+        | Blocking (th, fd) -> (
+            let fd = Rc.get_exn fd in
+            let* task = Thread.task th ~f:(fun () -> f fd) in
+            let+ res = Thread.await task in
+            match res with
+            | Ok _ as s -> s
+            | Error `Cancelled -> assert false
+            | Error (`Exn exn) -> Error exn.exn))
 
   let release t =
     match t with
@@ -560,11 +568,13 @@ module Io = struct
           | Ok () -> loop t stop_count
       in
       fun t ->
-        let stop_count =
-          match t.kind with
-          | Write { flush_counter } -> flush_counter + Buffer.length t.buffer
-        in
-        loop t stop_count
+        Fiber.of_thunk (fun () ->
+            let stop_count =
+              match t.kind with
+              | Write { flush_counter } ->
+                  flush_counter + Buffer.length t.buffer
+            in
+            loop t stop_count)
 
     let add_substring t str ~pos ~len =
       Buffer.Bytes.Writer.add_substring t.buffer str ~pos ~len
@@ -734,7 +744,7 @@ module Io = struct
                 Buffer.junk t.buffer ~len;
                 loop t buf)
       in
-      self
+      fun t -> Fiber.of_thunk (fun () -> self t)
 
     let read_exactly =
       let rec loop_buffer t buf remains =
@@ -774,7 +784,7 @@ module Io = struct
               Buffer.junk t.buffer ~len:avail;
               loop_buffer t buf (len - avail)
       in
-      self
+      fun t len -> Fiber.of_thunk (fun () -> self t len)
 
     let to_string =
       let rec loop t buf =
@@ -789,7 +799,7 @@ module Io = struct
             Expert.consume t ~len;
             loop t buf
       in
-      fun t -> loop t (Stdlib.Buffer.create 512)
+      fun t -> Fiber.of_thunk (fun () -> loop t (Stdlib.Buffer.create 512))
   end
 
   let with_read (t : input t) ~f =
@@ -902,15 +912,16 @@ module Socket = struct
       Fdecl.get t
 
     let close t =
-      if t.close then Fiber.return ()
-      else
-        let* scheduler = Fiber.Var.get_exn scheduler in
-        Fd.close t.fd;
-        Lev.Io.stop t.io scheduler.loop;
-        Lev.Io.destroy t.io;
-        t.close <- true;
-        let* () = Fiber.Pool.stop t.pool in
-        Fiber.Ivar.fill t.await ()
+      Fiber.of_thunk (fun () ->
+          if t.close then Fiber.return ()
+          else
+            let* scheduler = Fiber.Var.get_exn scheduler in
+            Fd.close t.fd;
+            Lev.Io.stop t.io scheduler.loop;
+            Lev.Io.destroy t.io;
+            t.close <- true;
+            let* () = Fiber.Pool.stop t.pool in
+            Fiber.Ivar.fill t.await ())
 
     module Session = struct
       type t = { fd : Fd.t; sockaddr : Unix.sockaddr }
