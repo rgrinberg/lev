@@ -184,12 +184,17 @@ module Timer = struct
 
     let reset (task : task) =
       let task' = Removable_queue.data !task in
-      if not task'.filled then (
-        Removable_queue.remove !task;
-        let now = Lev.Loop.now task'.wheel.scheduler.loop in
+      Removable_queue.remove !task;
+      let now = Lev.Loop.now task'.wheel.scheduler.loop in
+      let task' =
         let task' = { task' with scheduled = now } in
-        let new_task = Removable_queue.push task'.wheel.queue task' in
-        task := new_task)
+        if task'.filled then (
+          task'.filled <- false;
+          { task' with ivar = Fiber.Ivar.create () })
+        else task'
+      in
+      let new_task = Removable_queue.push task'.wheel.queue task' in
+      task := new_task
 
     let await (task : task) =
       Fiber.of_thunk (fun () ->
