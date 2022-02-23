@@ -156,6 +156,15 @@ module Timer = struct
 
     type task = elt Removable_queue.node ref
 
+    let wakeup_if_waiting t =
+      match t.waiting with
+      | None -> Fiber.return ()
+      | Some ivar ->
+          if t.waiting_filled then Fiber.return ()
+          else (
+            t.waiting_filled <- true;
+            Fiber.Ivar.fill ivar ())
+
     let task (t : t) : task Fiber.t =
       Fiber.of_thunk (fun () ->
           match !t with
@@ -171,30 +180,25 @@ module Timer = struct
                 }
               in
               let res = Removable_queue.push t.queue data in
-              let+ () =
-                match t.waiting with
-                | None -> Fiber.return ()
-                | Some ivar ->
-                    if t.waiting_filled then Fiber.return ()
-                    else (
-                      t.waiting_filled <- true;
-                      Fiber.Ivar.fill ivar ())
-              in
+              let+ () = wakeup_if_waiting t in
               ref res)
 
     let reset (task : task) =
-      let task' = Removable_queue.data !task in
-      Removable_queue.remove !task;
-      let now = Lev.Loop.now task'.wheel.scheduler.loop in
-      let task' =
-        let task' = { task' with scheduled = now } in
-        if task'.filled then (
-          task'.filled <- false;
-          { task' with ivar = Fiber.Ivar.create () })
-        else task'
-      in
-      let new_task = Removable_queue.push task'.wheel.queue task' in
-      task := new_task
+      Fiber.of_thunk (fun () ->
+          let task' = Removable_queue.data !task in
+          Removable_queue.remove !task;
+          let now = Lev.Loop.now task'.wheel.scheduler.loop in
+          let filled = task'.filled in
+          let task' =
+            let task' = { task' with scheduled = now } in
+            if filled then (
+              task'.filled <- false;
+              { task' with ivar = Fiber.Ivar.create () })
+            else task'
+          in
+          let new_task = Removable_queue.push task'.wheel.queue task' in
+          task := new_task;
+          if filled then wakeup_if_waiting task'.wheel else Fiber.return ())
 
     let await (task : task) =
       Fiber.of_thunk (fun () ->

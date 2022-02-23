@@ -14,7 +14,7 @@ module Timer : sig
     type task
     (** a task scheduled by the timer wheel *)
 
-    val reset : task -> unit
+    val reset : task -> unit Fiber.t
 
     val task : t -> task Fiber.t
     (** create a new task *)

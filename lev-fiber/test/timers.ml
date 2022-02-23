@@ -68,7 +68,7 @@ let%expect_test "timer wheel cancellation" =
           in
           let* () = Fiber.Pool.task pool ~f:(fun () -> await t2 2) in
           let* () = Fiber.Pool.stop pool in
-          let+ () = sleep () in
+          let* () = sleep () in
           Wheel.reset t1)
         (fun () ->
           print_endline "wheel: run";
@@ -121,7 +121,7 @@ let%expect_test "wheel - reset" =
             (match res with
             | `Cancelled -> printfn "cancelled"
             | `Ok -> assert false);
-            Wheel.reset task;
+            let* () = Wheel.reset task in
             let* res = Wheel.await task in
             (match res with
             | `Cancelled -> assert false
