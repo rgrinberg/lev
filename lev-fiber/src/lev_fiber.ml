@@ -127,7 +127,7 @@ module Timer = struct
       ivar : [ `Ok | `Cancelled ] Fiber.Ivar.t;
       scheduled : Lev.Timestamp.t;
       mutable filled : bool;
-      wheel : running;
+      wheel : t;
     }
 
     and running = {
@@ -169,8 +169,8 @@ module Timer = struct
       Fiber.of_thunk (fun () ->
           match !t with
           | Stopped -> Code_error.raise "Wheel.task" []
-          | Running t ->
-              let now = Lev.Loop.now t.scheduler.loop in
+          | Running wheel ->
+              let now = Lev.Loop.now wheel.scheduler.loop in
               let data =
                 {
                   wheel = t;
@@ -179,26 +179,29 @@ module Timer = struct
                   filled = false;
                 }
               in
-              let res = Removable_queue.push t.queue data in
-              let+ () = wakeup_if_waiting t in
+              let res = Removable_queue.push wheel.queue data in
+              let+ () = wakeup_if_waiting wheel in
               ref res)
 
     let reset (task : task) =
       Fiber.of_thunk (fun () ->
           let task' = Removable_queue.data !task in
-          Removable_queue.remove !task;
-          let now = Lev.Loop.now task'.wheel.scheduler.loop in
-          let filled = task'.filled in
-          let task' =
-            let task' = { task' with scheduled = now } in
-            if filled then (
-              task'.filled <- false;
-              { task' with ivar = Fiber.Ivar.create () })
-            else task'
-          in
-          let new_task = Removable_queue.push task'.wheel.queue task' in
-          task := new_task;
-          if filled then wakeup_if_waiting task'.wheel else Fiber.return ())
+          match !(task'.wheel) with
+          | Stopped -> Code_error.raise "reset: wheel is stopped" []
+          | Running wheel ->
+              Removable_queue.remove !task;
+              let now = Lev.Loop.now wheel.scheduler.loop in
+              let filled = task'.filled in
+              let task' =
+                let task' = { task' with scheduled = now } in
+                if filled then (
+                  task'.filled <- false;
+                  { task' with ivar = Fiber.Ivar.create () })
+                else task'
+              in
+              let new_task = Removable_queue.push wheel.queue task' in
+              task := new_task;
+              if filled then wakeup_if_waiting wheel else Fiber.return ())
 
     let await (task : task) =
       Fiber.of_thunk (fun () ->
@@ -243,7 +246,7 @@ module Timer = struct
                     Queue.push r.scheduler.queue (Fiber.Fill (task.ivar, `Ok)));
                   Fiber.return ())
                 else
-                  let scheduler = task.wheel.scheduler in
+                  let scheduler = r.scheduler in
                   let ivar = Fiber.Ivar.create () in
                   let timer =
                     Lev.Timer.create ~after (fun timer ->
