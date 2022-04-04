@@ -74,12 +74,22 @@ let%expect_test "read from pipe" =
 let%expect_test "timer" =
   let loop = Loop.create () in
   let timer =
-    Timer.create ~after:0.02 (fun timer ->
+    Timer.create ~after:0.001 (fun timer ->
         print_endline "fired timer";
         Timer.stop timer loop)
   in
   Timer.start timer loop;
   ignore (Lev.Loop.run loop Once);
+  [%expect {|
+    fired timer |}]
+
+let%expect_test "timer - not repeats" =
+  let loop = Loop.create () in
+  let timer = Timer.create ~after:0.0 (fun _ -> print_endline "fired timer") in
+  Timer.start timer loop;
+  ignore (Lev.Loop.run loop Once);
+  ignore (Lev.Loop.run loop Once);
+  Timer.stop timer loop;
   [%expect {|
     fired timer |}]
 
