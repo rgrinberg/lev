@@ -240,14 +240,21 @@ let%expect_test "timer - stops automatically" =
 
 let%expect_test "timer/again cancels start" =
   let loop = Loop.create () in
+  let count = ref 0 in
   let timer =
-    Timer.create ~after:0.05 (fun t ->
-        print_endline "timer fired";
-        Timer.stop t loop)
+    Timer.create ~after:0.0 (fun _ ->
+        incr count;
+        printf "timer fired %d\n" !count)
   in
   Timer.start timer loop;
+  ignore (Loop.run loop Once);
+  [%expect {| timer fired 1 |}];
+  Timer.start timer loop;
+  ignore (Loop.run loop Once);
+  [%expect {| timer fired 2 |}];
+  (* again does nothing because timer isn't periodic *)
   Timer.again timer loop;
-  Loop.run_until_done loop;
+  ignore (Loop.run loop Once);
   [%expect {| |}]
 
 let%expect_test "timer/consecutive again" =
