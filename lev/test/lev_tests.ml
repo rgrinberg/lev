@@ -93,6 +93,15 @@ let%expect_test "timer - not repeats" =
   [%expect {|
     fired timer |}]
 
+let%expect_test "timer - cancellation with stop" =
+  let loop = Loop.create () in
+  let timer = Timer.create ~after:6.5 (fun _ -> print_endline "fired timer") in
+  Timer.start timer loop;
+  ignore (Lev.Loop.run loop Nowait);
+  Timer.stop timer loop;
+  ignore (Lev.Loop.run loop Once);
+  [%expect {| |}]
+
 let%expect_test "periodic timer" =
   let loop = Loop.create () in
   let timer =
