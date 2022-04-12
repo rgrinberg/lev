@@ -123,6 +123,12 @@ module Timer = struct
     Fiber.Ivar.read ivar
 
   module Wheel = struct
+    type running_state =
+      | Idle
+      | Sleeping of Lev.Timer.t * unit Fiber.Ivar.t
+      (* set whenever the wheel is waiting for a new task *)
+      | Waiting of { ivar : unit Fiber.Ivar.t; filled : bool }
+
     type elt = {
       ivar : [ `Ok | `Cancelled ] Fiber.Ivar.t;
       scheduled : Lev.Timestamp.t;
@@ -134,9 +140,7 @@ module Timer = struct
       queue : elt Removable_queue.t;
       delay : float;
       scheduler : scheduler;
-      mutable waiting_filled : bool;
-      (* set whenever the wheel is waiting for a new task *)
-      mutable waiting : unit Fiber.Ivar.t option;
+      mutable state : running_state;
     }
 
     and state = Stopped | Running of running
@@ -146,24 +150,30 @@ module Timer = struct
       let+ scheduler = Fiber.Var.get_exn t in
       ref
         (Running
-           {
-             queue = Removable_queue.create ();
-             delay;
-             scheduler;
-             waiting_filled = false;
-             waiting = None;
-           })
+           { queue = Removable_queue.create (); delay; scheduler; state = Idle })
 
     type task = elt Removable_queue.node ref
+    type condition = { sleeping : bool; waiting : bool }
 
-    let wakeup_if_waiting t =
-      match t.waiting with
-      | None -> Fiber.return ()
-      | Some ivar ->
-          if t.waiting_filled then Fiber.return ()
-          else (
-            t.waiting_filled <- true;
-            Fiber.Ivar.fill ivar ())
+    let wakeup_if t { sleeping; waiting } =
+      match t.state with
+      | Sleeping (timer, ivar) when sleeping ->
+          let* { loop; _ } = Fiber.Var.get_exn scheduler in
+          Lev.Timer.stop timer loop;
+          Lev.Timer.destroy timer;
+          t.state <- Idle;
+          Fiber.Ivar.fill ivar ()
+      | Waiting { ivar; filled = false } when waiting ->
+          t.state <- Idle;
+          Fiber.Ivar.fill ivar ()
+      | _ -> Fiber.return ()
+
+    let set_delay t ~delay =
+      match !t with
+      | Stopped -> Code_error.raise "Wheel.set_delay" []
+      | Running d ->
+          t := Running { d with delay };
+          wakeup_if d { sleeping = true; waiting = false }
 
     let task (t : t) : task Fiber.t =
       Fiber.of_thunk (fun () ->
@@ -180,7 +190,7 @@ module Timer = struct
                 }
               in
               let res = Removable_queue.push wheel.queue data in
-              let+ () = wakeup_if_waiting wheel in
+              let+ () = wakeup_if wheel { waiting = true; sleeping = false } in
               ref res)
 
     let reset (task : task) =
@@ -201,7 +211,9 @@ module Timer = struct
               in
               let new_task = Removable_queue.push wheel.queue task' in
               task := new_task;
-              if filled then wakeup_if_waiting wheel else Fiber.return ())
+              if filled then
+                wakeup_if wheel { sleeping = false; waiting = true }
+              else Fiber.return ())
 
     let await (task : task) =
       Fiber.of_thunk (fun () ->
@@ -218,17 +230,15 @@ module Timer = struct
             Fiber.Ivar.fill task.ivar `Cancelled))
 
     let rec run t =
+      (* TODO do not allow double [run] *)
       match !t with
       | Stopped -> Fiber.return ()
       | Running r -> (
           match Removable_queue.peek r.queue with
           | None ->
               let ivar = Fiber.Ivar.create () in
-              r.waiting <- Some ivar;
-              r.waiting_filled <- false;
+              r.state <- Waiting { ivar; filled = false };
               let* () = Fiber.Ivar.read ivar in
-              r.waiting <- None;
-              r.waiting_filled <- false;
               run t
           | Some node ->
               let task = Removable_queue.data node in
@@ -254,6 +264,7 @@ module Timer = struct
                         Lev.Timer.destroy timer;
                         Queue.push scheduler.queue (Fiber.Fill (ivar, ())))
                   in
+                  r.state <- Sleeping (timer, ivar);
                   Lev.Timer.start timer scheduler.loop;
                   Fiber.Ivar.read ivar
               in
@@ -278,13 +289,10 @@ module Timer = struct
         Fiber.of_thunk (fun () ->
             match !t with
             | Stopped -> Fiber.return ()
-            | Running r -> (
+            | Running r ->
                 t := Stopped;
                 let* () = cancel_all r in
-                match r.waiting with
-                | Some _ when r.waiting_filled -> Fiber.return ()
-                | None -> Fiber.return ()
-                | Some w -> Fiber.Ivar.fill w ()))
+                wakeup_if r { sleeping = true; waiting = true })
   end
 end
 
