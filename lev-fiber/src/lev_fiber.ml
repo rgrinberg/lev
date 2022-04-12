@@ -143,8 +143,11 @@ module Timer = struct
       mutable state : running_state;
     }
 
-    and state = Stopped | Running of running
+    and state = Stopped of { delay : float } | Running of running
     and t = state ref
+
+    let delay t =
+      match !t with Stopped { delay } -> delay | Running { delay; _ } -> delay
 
     let create ~delay =
       let+ scheduler = Fiber.Var.get_exn t in
@@ -170,7 +173,7 @@ module Timer = struct
 
     let set_delay t ~delay =
       match !t with
-      | Stopped -> Code_error.raise "Wheel.set_delay" []
+      | Stopped _ -> Code_error.raise "Wheel.set_delay" []
       | Running d ->
           t := Running { d with delay };
           wakeup_if d { sleeping = true; waiting = false }
@@ -178,7 +181,7 @@ module Timer = struct
     let task (t : t) : task Fiber.t =
       Fiber.of_thunk (fun () ->
           match !t with
-          | Stopped -> Code_error.raise "Wheel.task" []
+          | Stopped _ -> Code_error.raise "Wheel.task" []
           | Running wheel ->
               let now = Lev.Loop.now wheel.scheduler.loop in
               let data =
@@ -197,7 +200,7 @@ module Timer = struct
       Fiber.of_thunk (fun () ->
           let task' = Removable_queue.data !task in
           match !(task'.wheel) with
-          | Stopped -> Code_error.raise "reset: wheel is stopped" []
+          | Stopped _ -> Code_error.raise "reset: wheel is stopped" []
           | Running wheel ->
               Removable_queue.remove !task;
               let now = Lev.Loop.now wheel.scheduler.loop in
@@ -232,7 +235,7 @@ module Timer = struct
     let rec run t =
       (* TODO do not allow double [run] *)
       match !t with
-      | Stopped -> Fiber.return ()
+      | Stopped _ -> Fiber.return ()
       | Running r -> (
           match Removable_queue.peek r.queue with
           | None ->
@@ -288,9 +291,9 @@ module Timer = struct
       fun t ->
         Fiber.of_thunk (fun () ->
             match !t with
-            | Stopped -> Fiber.return ()
+            | Stopped _ -> Fiber.return ()
             | Running r ->
-                t := Stopped;
+                t := Stopped { delay = r.delay };
                 let* () = cancel_all r in
                 wakeup_if r { sleeping = true; waiting = true })
   end

@@ -12,6 +12,7 @@ module Timer : sig
     (** [create ~delay] will create a wheel that times out every task in [delay] *)
 
     val set_delay : t -> delay:float -> unit Fiber.t
+    val delay : t -> float
 
     type task
     (** a task scheduled by the timer wheel *)
