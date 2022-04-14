@@ -117,13 +117,16 @@ module Session = struct
   let write t sexps =
     match t.state with
     | Closed -> write_closed sexps
-    | Open { out_channel; _ } -> (
+    | Open { out_channel; socket; _ } -> (
         match sexps with
         | None ->
-            (try
-               let fd = Io.fd out_channel in
-               Unix.shutdown (Lev_fiber.Fd.fd fd) Unix.SHUTDOWN_ALL
-             with Unix.Unix_error (_, _, _) -> ());
+            (match socket with
+            | false -> ()
+            | true -> (
+                try
+                  let fd = Io.fd out_channel in
+                  Unix.shutdown (Lev_fiber.Fd.fd fd) Unix.SHUTDOWN_ALL
+                with Unix.Unix_error (_, _, _) -> ()));
             close t;
             Fiber.return ()
         | Some sexps ->
