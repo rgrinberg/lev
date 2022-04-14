@@ -13,6 +13,8 @@ module Session = struct
     | Open of {
         out_channel : Io.output Io.t;
         in_channel : Io.input Io.t;
+        read : Fiber.Mutex.t;
+        write : Fiber.Mutex.t;
         socket : bool;
       }
 
@@ -20,13 +22,22 @@ module Session = struct
 
   let create ~socket in_channel out_channel =
     let id = Id.gen () in
-    let state = Open { in_channel; out_channel; socket } in
+    let state =
+      Open
+        {
+          in_channel;
+          out_channel;
+          socket;
+          read = Fiber.Mutex.create ();
+          write = Fiber.Mutex.create ();
+        }
+    in
     { id; state }
 
   let close t =
     match t.state with
     | Closed -> ()
-    | Open { in_channel; out_channel; socket = _ } ->
+    | Open { in_channel; out_channel; read = _; write = _; socket = _ } ->
         (* with a socket, there's only one fd. We make sure to close it only once.
            with dune rpc init, we have two separate fd's (stdin/stdout) so we must
            close both. *)
@@ -91,14 +102,21 @@ module Session = struct
         (match res with None -> Io.close in_channel | Some _ -> ());
         res
 
+  let read t =
+    match t.state with
+    | Closed -> Fiber.return None
+    | Open { read = mutex; _ } -> Fiber.Mutex.with_lock mutex (fun () -> read t)
+
+  let write_closed sexps =
+    match sexps with
+    | None -> Fiber.return ()
+    | Some sexps ->
+        Code_error.raise "attempting to write to a closed channel"
+          [ ("sexp", Dyn.(list Sexp.to_dyn) sexps) ]
+
   let write t sexps =
     match t.state with
-    | Closed -> (
-        match sexps with
-        | None -> Fiber.return ()
-        | Some sexps ->
-            Code_error.raise "attempting to write to a closed channel"
-              [ ("sexp", Dyn.(list Sexp.to_dyn) sexps) ])
+    | Closed -> write_closed sexps
     | Open { out_channel; _ } -> (
         match sexps with
         | None ->
@@ -135,6 +153,12 @@ module Session = struct
                       loop sexps
                 in
                 loop sexps))
+
+  let write t sexps =
+    match t.state with
+    | Closed -> write_closed sexps
+    | Open { write = mutex; _ } ->
+        Fiber.Mutex.with_lock mutex (fun () -> write t sexps)
 end
 
 let connect fd sockaddr =
