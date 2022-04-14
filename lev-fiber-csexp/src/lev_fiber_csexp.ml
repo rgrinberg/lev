@@ -103,7 +103,6 @@ module Session = struct
         match sexps with
         | None ->
             (try
-               (* TODO this hack is temporary until we get rid of dune rpc init *)
                let fd = Io.fd out_channel in
                Unix.shutdown (Lev_fiber.Fd.fd fd) Unix.SHUTDOWN_ALL
              with Unix.Unix_error (_, _, _) -> ());
