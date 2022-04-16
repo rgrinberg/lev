@@ -2,6 +2,11 @@
 
 #define EV_MULTIPLICITY 1
 
+#ifdef _MSC_VER
+#define HAVE_SYS_SELECT_H 1
+#define HAVE_SELECT 1
+#else /* _MSC_VER */
+
 #if __has_include(<sys/inotify.h>)
 #define HAVE_SYS_INOTIFY_H 1
 #endif
@@ -64,5 +69,7 @@
 #if defined(__linux__) || defined(__unix__) || defined(__APPLE__)
 #define HAVE_NANOSLEEP 1
 #endif
+
+#endif /* _MSC_VER */
 
 #define HAVE_FLOOR 1
