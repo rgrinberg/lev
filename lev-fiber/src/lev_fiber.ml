@@ -1037,7 +1037,7 @@ let run lev_loop ~f =
           watcher.process_thread <- lazy (run_thread watcher);
           Some watcher
     in
-    Fiber.Var.set t
+    let tval =
       {
         loop = lev_loop;
         queue;
@@ -1046,7 +1046,9 @@ let run lev_loop ~f =
         thread_jobs;
         process_watcher;
       }
-      f
+    in
+    Fdecl.set tref tval;
+    Fiber.Var.set t tval f
   in
   let rec events q acc =
     match Queue.pop q with None -> acc | Some e -> events q (e :: acc)
