@@ -1019,10 +1019,11 @@ let run lev_loop ~f =
             Option.iter result ~f:(fun (job, _) ->
                 Table.remove watcher.active job.pid);
             Mutex.unlock watcher.mutex;
-            Option.iter result ~f:(fun (job, status) ->
-                finish_job (Fdecl.get tref) (Fiber.Fill (job.ivar, status));
-                run_thread watcher);
-            Unix.sleepf 0.05
+            (match result with
+            | None -> Unix.sleepf 0.05
+            | Some (job, status) ->
+                finish_job (Fdecl.get tref) (Fiber.Fill (job.ivar, status)));
+            run_thread watcher
           and check_running watcher =
             try
               Table.iter watcher.active ~f:(fun (job : process) ->
