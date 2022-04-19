@@ -1034,7 +1034,8 @@ let run lev_loop ~f =
               None
             with Finished (job, status) -> Some (job, status)
           in
-          watcher.process_thread <- lazy (run_thread watcher);
+          watcher.process_thread <-
+            lazy (Thread.spawn_thread @@ fun () -> run_thread watcher);
           Some watcher
     in
     let tval =
