@@ -145,7 +145,7 @@ let%expect_test "compression - a only" =
   [%expect {|
     available: 5 |}]
 
-let%expect_test "compressio - a & b" =
+let%expect_test "compression - a & b" =
   let buf_size = 8 in
   let b = B.create (Bytes.make buf_size '0') ~len:buf_size in
   write_str b (String.make 7 '1');
