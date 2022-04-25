@@ -574,12 +574,12 @@ module Io = struct
           >= stop_count
         then Fiber.return ()
         else
-          let buffer = Buffer.buffer t.buffer in
           let* res =
             with_ t.fd Write ~f:(fun fd ->
                 match Buffer.peek t.buffer with
                 | None -> ()
                 | Some { Slice.pos; len } -> (
+                    let buffer = Buffer.buffer t.buffer in
                     let len = Unix.single_write fd.fd buffer pos len in
                     Buffer.junk t.buffer ~len;
                     match t.kind with
