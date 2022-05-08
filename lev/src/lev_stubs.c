@@ -3,7 +3,9 @@
 #include <stdbool.h>
 
 #include <math.h>
-
+#if (defined(__FreeBSD__) || defined(__OpenBSD__))
+#include <sys/wait.h>
+#endif
 #define TAG_WEXITED 0
 #define TAG_WSIGNALED 1
 #define TAG_WSTOPPED 2
