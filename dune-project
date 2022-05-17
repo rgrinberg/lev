@@ -44,5 +44,5 @@
   stdune
   dyn
   csexp
-  fiber
+  (fiber (>= 3.1.1))
   base-unix))

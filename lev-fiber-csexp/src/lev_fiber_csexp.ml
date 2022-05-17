@@ -105,7 +105,8 @@ module Session = struct
   let read t =
     match t.state with
     | Closed -> Fiber.return None
-    | Open { read = mutex; _ } -> Fiber.Mutex.with_lock mutex (fun () -> read t)
+    | Open { read = mutex; _ } ->
+        Fiber.Mutex.with_lock mutex ~f:(fun () -> read t)
 
   let write_closed sexps =
     match sexps with
@@ -161,7 +162,7 @@ module Session = struct
     match t.state with
     | Closed -> write_closed sexps
     | Open { write = mutex; _ } ->
-        Fiber.Mutex.with_lock mutex (fun () -> write t sexps)
+        Fiber.Mutex.with_lock mutex ~f:(fun () -> write t sexps)
 end
 
 let connect fd sockaddr =
