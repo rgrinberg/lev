@@ -60,6 +60,7 @@ end
 module Fd : sig
   type t
 
+  val close : t -> unit
   val create : Unix.file_descr -> [ `Blocking | `Non_blocking of bool ] -> t
   val fd : t -> Unix.file_descr
 end
