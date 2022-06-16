@@ -675,8 +675,10 @@ module Io = struct
 
       let refill =
         let rec read t ~len ~dst_pos =
-          let b = Bytes.create len in
-          let* res = with_ t.fd Read ~f:(fun fd -> Unix.read fd.fd b 0 len) in
+          let buffer = Buffer.buffer t.buffer in
+          let* res =
+            with_ t.fd Read ~f:(fun fd -> Unix.read fd.fd buffer 0 len)
+          in
           match res with
           | Error (Unix.Unix_error (Unix.EAGAIN, _, _)) -> read t ~len ~dst_pos
           | Ok 0 | Error (Unix.Unix_error (Unix.EBADF, _, _)) ->
@@ -684,8 +686,6 @@ module Io = struct
               Buffer.commit t.buffer ~len:0;
               Fiber.return ()
           | Ok len ->
-              Bytes.blit ~src:b ~src_pos:0 ~dst:(Buffer.buffer t.buffer)
-                ~dst_pos ~len;
               Buffer.commit t.buffer ~len;
               Fiber.return ()
           | Error exn -> reraise exn
