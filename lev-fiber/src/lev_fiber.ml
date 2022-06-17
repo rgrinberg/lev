@@ -102,10 +102,9 @@ module Thread = struct
     let* status = Fiber.Ivar.peek task.ivar in
     match status with
     | Some _ -> Fiber.return ()
-    | None -> (
-        match Worker.cancel_if_not_consumed task.task with
-        | `Ok -> Fiber.Ivar.fill task.ivar (Error `Cancelled)
-        | `Consumed -> Fiber.return ())
+    | None ->
+        Worker.cancel_if_not_consumed task.task;
+        Fiber.Ivar.fill task.ivar (Error `Cancelled)
 
   let close t = Worker.complete_tasks_and_stop t.worker
 end
@@ -203,7 +202,7 @@ module Timer = struct
           match !(task'.wheel) with
           | Stopped _ -> Code_error.raise "reset: wheel is stopped" []
           | Running wheel ->
-              let (_ : [ `Ok | `Consumed ]) = Removable_queue.remove !task in
+              Removable_queue.remove !task;
               let now = Lev.Loop.now wheel.scheduler.loop in
               let filled = task'.filled in
               let task' =
@@ -230,7 +229,7 @@ module Timer = struct
           if task.filled then Fiber.return ()
           else (
             task.filled <- true;
-            let (_ : [ `Ok | `Consumed ]) = Removable_queue.remove !node in
+            Removable_queue.remove !node;
             Fiber.Ivar.fill task.ivar `Cancelled))
 
     let rec run t =
@@ -254,7 +253,7 @@ module Timer = struct
               let expired = after < 0. in
               let* () =
                 if expired then (
-                  let (_ : [ `Ok | `Consumed ]) = Removable_queue.remove node in
+                  Removable_queue.remove node;
                   if not task.filled then (
                     task.filled <- true;
                     Queue.push r.scheduler.queue (Fiber.Fill (task.ivar, `Ok)));

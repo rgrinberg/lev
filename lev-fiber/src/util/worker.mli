@@ -10,7 +10,7 @@ val create :
 
 type task
 
-val cancel_if_not_consumed : task -> [ `Ok | `Consumed ]
+val cancel_if_not_consumed : task -> unit
 (** Cancels the task in the queue if it hasn't already been consumed by the
     thread. Does nothing if the task has been consumed already. *)
 

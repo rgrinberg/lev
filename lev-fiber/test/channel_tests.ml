@@ -51,9 +51,7 @@ let%expect_test "send 0, 1, 2, but remove 1" =
       (fun () ->
         ignore @@ Channel.send ch 0;
         let removable = Channel.send_removable ch 1 in
-        let (_ : [ `Ok | `Consumed ]) =
-          Channel.remove_if_not_consumed @@ Result.get_ok removable
-        in
+        Channel.remove_if_not_consumed @@ Result.get_ok removable;
         Channel.send ch 2)
       ()
   in

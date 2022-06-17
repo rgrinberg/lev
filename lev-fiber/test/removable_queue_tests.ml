@@ -27,7 +27,7 @@ let%expect_test "remove works with a 1 element queue" =
   let q = Q.create () in
   let node = Q.push q 100 in
   printf "empty: %b\n" (Q.is_empty q);
-  let (_ : [ `Ok | `Consumed ]) = Q.remove node in
+  Q.remove node;
   printf "empty: %b\n" (Q.is_empty q);
   [%expect {|
     empty: false
@@ -58,7 +58,7 @@ let%expect_test "remove in the middle" =
   add_all q [ 100; 200 ];
   let elem = Q.push q 300 in
   add_all q [ 400 ];
-  let (_ : [ `Ok | `Consumed ]) = Q.remove elem in
+  Q.remove elem;
   print_all q Int.to_string;
   [%expect {|
     elem: 100
@@ -69,7 +69,7 @@ let%expect_test "push; push; remove; push -- head & tail are set correctly" =
   let q = Q.create () in
   ignore @@ Q.push q 0;
   let n = Q.push q 1 in
-  let (_ : [ `Ok | `Consumed ]) = Q.remove n in
+  Q.remove n;
   ignore @@ Q.push q 2;
   print_all q Int.to_string;
   [%expect {|
