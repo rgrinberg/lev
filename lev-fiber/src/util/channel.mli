@@ -29,7 +29,7 @@ val send_many : 'a t -> 'a list -> (unit, [ `Closed ]) result
 (** similar to [send_removable_many] but the elements in the channel are
     non-removable once sent *)
 
-val remove_if_not_consumed : elt_in_channel -> unit
+val remove_if_not_consumed : elt_in_channel -> [ `Ok | `Consumed ]
 (** remove element put in the channel if it hasn't been consumed yet *)
 
 val get : 'a t -> ('a, [ `Closed ]) result

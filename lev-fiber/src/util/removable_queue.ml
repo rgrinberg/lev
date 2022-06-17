@@ -68,8 +68,10 @@ let pop : 'a. 'a t -> 'a option =
     mark_as_detached removed_node;
     removed_node.data
 
-let remove node : unit =
-  if not (is_detached node) then (
+let remove node =
+  if is_detached node then `Consumed
+  else (
     node.prev.next <- node.next;
     node.next.prev <- node.prev;
-    mark_as_detached node)
+    mark_as_detached node;
+    `Ok)
