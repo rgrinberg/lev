@@ -11,12 +11,15 @@ type process_watcher = {
   mutex : Mutex.t;
 }
 
+type thread_job_status = Active | Complete | Cancelled
+type thread_job = { status : thread_job_status ref; ivar : Fiber.fill }
+
 type t = {
   loop : Lev.Loop.t;
   queue : Fiber.fill Queue.t;
   (* TODO stop when there are no threads *)
   async : Lev.Async.t;
-  thread_jobs : Fiber.fill Queue.t;
+  thread_jobs : thread_job Queue.t;
   thread_mutex : Mutex.t;
   process_watcher : process_watcher option;
 }
@@ -57,6 +60,7 @@ module Thread = struct
   type job =
     | Job :
         (unit -> 'a)
+        * thread_job_status ref
         * ('a, [ `Exn of Exn_with_backtrace.t | `Cancelled ]) result
           Fiber.Ivar.t
         -> job
@@ -69,13 +73,13 @@ module Thread = struct
 
   let create () =
     let+ t = Fiber.Var.get_exn t in
-    let do_no_raise (Job (f, ivar)) =
+    let do_no_raise (Job (f, status, ivar)) =
       let res =
         match Exn_with_backtrace.try_with f with
         | Ok x -> Ok x
         | Error exn -> Error (`Exn exn)
       in
-      finish_job t (Fiber.Fill (ivar, res))
+      finish_job t { status; ivar = Fiber.Fill (ivar, res) }
     in
     let worker = Worker.create ~spawn_thread ~do_no_raise in
     { worker }
@@ -84,25 +88,27 @@ module Thread = struct
     ivar :
       ('a, [ `Exn of Exn_with_backtrace.t | `Cancelled ]) result Fiber.Ivar.t;
     task : Worker.task;
+    status : thread_job_status ref;
   }
 
   let task t ~f =
     Fiber.of_thunk (fun () ->
         let ivar = Fiber.Ivar.create () in
+        let status = ref Active in
         let task =
-          match Worker.add_work t.worker (Job (f, ivar)) with
+          match Worker.add_work t.worker (Job (f, status, ivar)) with
           | Ok task -> task
           | Error `Stopped -> Code_error.raise "already stopped" []
         in
-        Fiber.return { ivar; task })
+        Fiber.return { ivar; task; status })
 
   let await task = Fiber.Ivar.read task.ivar
 
   let cancel task =
-    let* status = Fiber.Ivar.peek task.ivar in
-    match status with
-    | Some _ -> Fiber.return ()
-    | None ->
+    match !(task.status) with
+    | Cancelled | Complete -> Fiber.return ()
+    | Active ->
+        task.status := Cancelled;
         Worker.cancel_if_not_consumed task.task;
         Fiber.Ivar.fill task.ivar (Error `Cancelled)
 
@@ -997,7 +1003,15 @@ let run lev_loop ~f =
   let async =
     Lev.Async.create (fun _ ->
         Mutex.lock thread_mutex;
-        Queue.transfer thread_jobs queue;
+        while not (Queue.is_empty thread_jobs) do
+          let { ivar; status } = Queue.pop_exn thread_jobs in
+          match !status with
+          | Active ->
+              status := Complete;
+              Queue.push queue ivar
+          | Cancelled -> ()
+          | Complete -> assert false
+        done;
         Mutex.unlock thread_mutex)
   in
   Lev.Async.start async lev_loop;
@@ -1022,7 +1036,8 @@ let run lev_loop ~f =
             (match result with
             | None -> Unix.sleepf 0.05
             | Some (job, status) ->
-                finish_job (Fdecl.get tref) (Fiber.Fill (job.ivar, status)));
+                finish_job (Fdecl.get tref)
+                  { status = ref Active; ivar = Fiber.Fill (job.ivar, status) });
             run_thread watcher
           and check_running watcher =
             try
