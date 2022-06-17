@@ -4,7 +4,7 @@ type 'a t
 type 'a node
 
 val data : 'a node -> 'a
-val remove : _ node -> unit
+val remove : _ node -> [ `Ok | `Consumed ]
 val is_empty : _ t -> bool
 val create : unit -> 'a t
 val push : 'a t -> 'a -> 'a node
