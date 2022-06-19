@@ -58,11 +58,13 @@ let finish_job t fill =
 
 module Thread = struct
   type job =
-    | Job :
-        (unit -> 'a)
-        * thread_job_status ref
-        * ('a, [ `Exn of Exn_with_backtrace.t | `Cancelled ]) result
-          Fiber.Ivar.t
+    | Job : {
+        run : unit -> 'a;
+        status : thread_job_status ref;
+        ivar :
+          ('a, [ `Exn of Exn_with_backtrace.t | `Cancelled ]) result
+          Fiber.Ivar.t;
+      }
         -> job
 
   type t = { worker : job Worker.t }
@@ -73,9 +75,9 @@ module Thread = struct
 
   let create () =
     let+ t = Fiber.Var.get_exn t in
-    let do_no_raise (Job (f, status, ivar)) =
+    let do_no_raise (Job { run; status; ivar }) =
       let res =
-        match Exn_with_backtrace.try_with f with
+        match Exn_with_backtrace.try_with run with
         | Ok x -> Ok x
         | Error exn -> Error (`Exn exn)
       in
@@ -96,7 +98,7 @@ module Thread = struct
         let ivar = Fiber.Ivar.create () in
         let status = ref Active in
         let task =
-          match Worker.add_work t.worker (Job (f, status, ivar)) with
+          match Worker.add_work t.worker (Job { run = f; status; ivar }) with
           | Ok task -> task
           | Error `Stopped -> Code_error.raise "already stopped" []
         in
