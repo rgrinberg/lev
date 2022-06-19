@@ -329,3 +329,33 @@ let%expect_test "watch closed" =
   [%expect {|
     read 0 bytes
   |}]
+
+let%expect_test "watch closed" =
+  let r, w = Unix.pipe ~cloexec:true () in
+  Unix.set_nonblock r;
+  let loop = Loop.create ~flags:(Loop.Flag.Set.singleton (Backend Select)) () in
+  let io_r =
+    Io.create
+      (fun io fd _events ->
+        let b = Bytes.make 1 '0' in
+        match Unix.read fd b 0 1 with
+        | exception Unix.Unix_error (EAGAIN, _, _) -> assert false
+        | 0 ->
+            Lev.Io.stop io loop;
+            print_endline "read 0 bytes"
+        | _ -> assert false)
+      r
+      (Io.Event.Set.create ~read:true ())
+  in
+  Io.start io_r loop;
+  let check =
+    Check.create (fun _ ->
+        printf "closing after start\n";
+        Unix.close w;
+        Unix.close r)
+  in
+  Check.start check loop;
+  ignore (Loop.run loop Nowait);
+  [%expect {|
+    closing after start
+  |}]
