@@ -387,7 +387,9 @@ module Fd = struct
   type kind = Blocking | Non_blocking of { mutable set : bool }
   type t = { fd : Unix.file_descr; kind : kind; mutable closed : bool }
 
-  let fd t = t.fd
+  let fd t =
+    assert (not t.closed);
+    t.fd
 
   let close t =
     if not t.closed then (
@@ -405,6 +407,7 @@ module Fd = struct
     create' fd kind
 
   let set_nonblock t =
+    assert (not t.closed);
     match t.kind with
     | Blocking -> ()
     | Non_blocking nb ->
