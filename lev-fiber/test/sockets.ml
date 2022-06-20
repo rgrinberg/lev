@@ -27,13 +27,13 @@ let%expect_test "server & client" =
           print_endline "server: client connected";
           let* contents = Io.with_read i ~f:Io.Reader.to_string in
           printfn "server: received %S" contents;
-          Io.close i;
           let* () =
             Io.with_write o ~f:(fun w ->
                 Io.Writer.add_string w "pong";
                 Io.Writer.flush w)
           in
           Io.close o;
+          Io.close i;
           Socket.Server.close server)
     in
     let client () =
@@ -49,9 +49,9 @@ let%expect_test "server & client" =
             Io.Writer.flush w)
       in
       Unix.shutdown (Lev_fiber.Fd.fd fd) SHUTDOWN_SEND;
-      Io.close o;
       let+ result = Io.with_read i ~f:Io.Reader.to_string in
       printfn "client: received %S" result;
+      Io.close o;
       Io.close i
     in
     Fiber.fork_and_join_unit client server
