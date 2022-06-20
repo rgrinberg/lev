@@ -452,10 +452,9 @@ module Lev_fd = struct
         Queue.push q ivar;
         Fiber.Ivar.read ivar)
 
-  let make_finalizer loop io () =
+  let make_finalizer loop io fd () =
     Lev.Io.stop io loop;
-    let fd = Lev.Io.fd io in
-    Unix.close fd;
+    Fd.close fd;
     Lev.Io.destroy io
 
   let make_cb t scheduler _ _ set =
@@ -485,7 +484,7 @@ module Lev_fd = struct
     let io = Lev.Io.create (make_cb t scheduler) fd.fd events in
     Fdecl.set t
       (Rc.create
-         ~finalize:(make_finalizer scheduler.loop io)
+         ~finalize:(make_finalizer scheduler.loop io fd)
          ~count:ref_count
          {
            events;
