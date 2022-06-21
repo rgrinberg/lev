@@ -3,11 +3,33 @@ open Fiber.O
 open Lev_fiber_util
 module Timestamp = Lev.Timestamp
 
-type process = { pid : Pid.t; ivar : Unix.process_status Fiber.Ivar.t }
+module Process_table = struct
+  type process = { pid : Pid.t; ivar : Unix.process_status Fiber.Ivar.t }
+  type t = { active : (Pid.t, process) Table.t }
+
+  let create () = { active = Table.create (module Pid) 16 }
+
+  let spawn t pid =
+    let ivar = Fiber.Ivar.create () in
+    let process = { pid; ivar } in
+    Table.add_exn t.active pid process;
+    ivar
+
+  let reap t =
+    let reaped = ref [] in
+    Table.filteri_inplace t.active ~f:(fun ~key:pid ~data:process ->
+        let pid, status = Unix.waitpid [ WNOHANG ] (Pid.to_int pid) in
+        match pid with
+        | 0 ->
+            reaped := (process, status) :: !reaped;
+            false
+        | _ -> true);
+    !reaped
+end
 
 type process_watcher = {
   mutable process_thread : unit Lazy.t;
-  active : (Pid.t, process) Table.t;
+  table : Process_table.t;
   mutex : Mutex.t;
 }
 
@@ -52,6 +74,12 @@ end
 let finish_job t fill =
   Mutex.lock t.thread_mutex;
   Queue.push t.thread_jobs fill;
+  Mutex.unlock t.thread_mutex;
+  Lev.Async.send t.async t.loop
+
+let finish_jobs t fills =
+  Mutex.lock t.thread_mutex;
+  List.iter fills ~f:(Queue.push t.thread_jobs);
   Mutex.unlock t.thread_mutex;
   Lev.Async.send t.async t.loop
 
@@ -316,9 +344,8 @@ let waitpid_win32 ~pid =
         Lazy.force watcher.process_thread;
         watcher
   in
-  let ivar = Fiber.Ivar.create () in
   Mutex.lock watcher.mutex;
-  Table.add_exn watcher.active pid { pid; ivar };
+  let ivar = Process_table.spawn watcher.table pid in
   Mutex.unlock watcher.mutex;
   Fiber.Ivar.read ivar
 
@@ -999,8 +1026,6 @@ let yield () =
   Queue.push scheduler.queue (Fiber.Fill (ivar, ()));
   Fiber.Ivar.read ivar
 
-exception Finished of process * Unix.process_status
-
 let run lev_loop ~f =
   let tref = Fdecl.create Dyn.opaque in
   let thread_jobs = Queue.create () in
@@ -1028,32 +1053,24 @@ let run lev_loop ~f =
       | true ->
           let watcher =
             {
-              active = Table.create (module Pid) 16;
+              table = Process_table.create ();
               mutex = Mutex.create ();
               process_thread = lazy ();
             }
           in
           let rec run_thread watcher =
             Mutex.lock watcher.mutex;
-            let result = check_running watcher in
-            Option.iter result ~f:(fun (job, _) ->
-                Table.remove watcher.active job.pid);
+            let result = Process_table.reap watcher.table in
             Mutex.unlock watcher.mutex;
             (match result with
-            | None -> Unix.sleepf 0.05
-            | Some (job, status) ->
-                finish_job (Fdecl.get tref)
-                  { status = ref Active; ivar = Fiber.Fill (job.ivar, status) });
+            | [] -> Unix.sleepf 0.05
+            | _ :: _ ->
+                finish_jobs (Fdecl.get tref)
+                  (List.rev_map result
+                     ~f:(fun ((process : Process_table.process), status) ->
+                       let ivar = Fiber.Fill (process.ivar, status) in
+                       { status = ref Active; ivar })));
             run_thread watcher
-          and check_running watcher =
-            try
-              Table.iter watcher.active ~f:(fun (job : process) ->
-                  let pid, status =
-                    Unix.waitpid [ WNOHANG ] (Pid.to_int job.pid)
-                  in
-                  if pid <> 0 then raise_notrace (Finished (job, status)));
-              None
-            with Finished (job, status) -> Some (job, status)
           in
           watcher.process_thread <-
             lazy (Thread.spawn_thread @@ fun () -> run_thread watcher);
