@@ -123,7 +123,7 @@ let with_pipe_test output f =
         Io.close ic)
       writer
   in
-  Lev_fiber.run (Lev.Loop.default ()) ~f:run
+  Lev_fiber.run (Lev.Loop.create ()) ~f:run
 
 let%expect_test "read lines" =
   with_pipe_test "foo\nbar\r\n\nbaz\r\r\neof" (fun r ->

@@ -154,6 +154,6 @@ module Socket : sig
 end
 
 val yield : unit -> unit Fiber.t
-(** [yield ()] wait for one iteartion of the event loop *)
+(** [yield ()] wait for one iteration of the event loop *)
 
 val run : Lev.Loop.t -> f:(unit -> 'a Fiber.t) -> 'a
