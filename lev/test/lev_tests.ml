@@ -359,3 +359,13 @@ let%expect_test "watch closed" =
   [%expect {|
     closing after start
   |}]
+
+let%expect_test "unref" =
+  let loop = Loop.create () in
+  let check = Check.create (fun _ -> printf "only one iteration\n") in
+  Check.start check loop;
+  Loop.unref loop;
+  ignore (Loop.run_until_done loop);
+  [%expect {|
+    only one iteration
+  |}]
