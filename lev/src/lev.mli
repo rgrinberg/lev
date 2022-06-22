@@ -83,6 +83,7 @@ module Loop : sig
       type elt := t
       type t
 
+      val empty : t
       val singleton : elt -> t
       val of_backend_set : Backend.Set.t -> t
       val inter : t -> t -> t
