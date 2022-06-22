@@ -373,7 +373,8 @@ let%expect_test "unref" =
 let%expect_test "is_default" =
   printf "is_default(default) = %b\n" (Loop.is_default (Loop.default ()));
   printf "is_default(create) = %b\n" (Loop.is_default (Loop.create ()));
-  [%expect {|
+  [%expect
+    {|
     is_default(default) = true
     is_default(create) = false
   |}]
