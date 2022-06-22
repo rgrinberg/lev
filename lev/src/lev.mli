@@ -97,9 +97,9 @@ module Loop : sig
   val now : t -> Timestamp.t
 
   val default : ?flags:Flag.Set.t -> unit -> t
-  (** Use this one unless you have a strong reason. The default event loop is
-      the only one that can handle child watchers. *)
+  (** The default event loop is the only one that can handle child watchers. *)
 
+  val is_default : t -> bool
   val create : ?flags:Flag.Set.t -> unit -> t
   val destroy : t -> unit
   val now_update : t -> unit
