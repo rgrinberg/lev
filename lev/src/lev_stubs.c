@@ -490,7 +490,8 @@ CAMLprim value lev_signal_create(value v_cb, value v_signal) {
   CAMLparam2(v_cb, v_signal);
   CAMLlocal2(v_w, v_cb_applied);
   ev_signal *w = caml_stat_alloc(sizeof(ev_signal));
-  ev_signal_init(w, Cb_for(ev_signal), Int_val(v_signal));
+  int signal = caml_convert_signal_number(Int_val(v_signal));
+  ev_signal_init(w, Cb_for(ev_signal), signal);
   v_w = caml_alloc_custom(&watcher_ops, sizeof(struct ev_signal *), 0, 1);
   Ev_val(ev_signal, v_w) = w;
   v_cb_applied = caml_callback(v_cb, v_w);
