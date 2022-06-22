@@ -176,6 +176,7 @@ module Loop = struct
   external destroy : t -> unit = "lev_loop_destroy"
   external now_update : t -> unit = "lev_loop_now_update"
   external run : t -> int -> bool = "lev_ev_run"
+  external is_default : t -> bool = "lev_loop_is_default"
 
   type run = Once | Nowait
 
