@@ -225,6 +225,8 @@ module Loop = struct
 
   external suspend : t -> unit = "lev_loop_suspend"
   external resume : t -> unit = "lev_loop_resume"
+  external ref : t -> unit = "lev_loop_ref"
+  external unref : t -> unit = "lev_loop_unref"
 end
 
 module type Watcher = sig
