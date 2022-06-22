@@ -210,6 +210,20 @@ CAMLprim value lev_loop_suspend(value v_loop) {
   CAMLreturn(Val_unit);
 }
 
+CAMLprim value lev_loop_ref(value v_loop) {
+  CAMLparam1(v_loop);
+  struct ev_loop *loop = (struct ev_loop *)Nativeint_val(v_loop);
+  ev_ref(loop);
+  CAMLreturn(Val_unit);
+}
+
+CAMLprim value lev_loop_unref(value v_loop) {
+  CAMLparam1(v_loop);
+  struct ev_loop *loop = (struct ev_loop *)Nativeint_val(v_loop);
+  ev_unref(loop);
+  CAMLreturn(Val_unit);
+}
+
 CAMLprim value lev_loop_resume(value v_loop) {
   CAMLparam1(v_loop);
   struct ev_loop *loop = (struct ev_loop *)Nativeint_val(v_loop);

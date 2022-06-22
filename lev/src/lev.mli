@@ -115,6 +115,8 @@ module Loop : sig
   val backend : t -> Backend.t
   val suspend : t -> unit
   val resume : t -> unit
+  val ref : t -> unit
+  val unref : t -> unit
 end
 
 module type Watcher = sig
