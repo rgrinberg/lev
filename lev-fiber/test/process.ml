@@ -8,7 +8,7 @@ let%expect_test "wait for simple process" =
   Unix.close stdin_w;
   Unix.close stdout_r;
   Unix.close stderr_r;
-  Lev_fiber.run (Lev.Loop.create ()) ~f:(fun () ->
+  Lev_fiber.run (fun () ->
       let pid = Unix.create_process "true" [| "true" |] stdin stdout stderr in
       let+ status = Lev_fiber.waitpid ~pid in
       match status with

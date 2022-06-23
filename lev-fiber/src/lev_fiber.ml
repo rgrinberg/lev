@@ -1054,10 +1054,11 @@ let yield () =
   Queue.push scheduler.queue (Fiber.Fill (ivar, ()));
   Fiber.Ivar.read ivar
 
-let run (type a) lev_loop ~(f : unit -> a Fiber.t) : a =
-  if Lev.Loop.is_default lev_loop then
-    Code_error.raise
-      "Lev_fiber.run: does not accept the default loop. Create a new loop." [];
+let run (type a) ?(flags = Lev.Loop.Flag.Set.singleton Nosigmask)
+    (f : unit -> a Fiber.t) : a =
+  if not (Lev.Loop.Flag.Set.mem flags Nosigmask) then
+    Code_error.raise "flags must include Nosigmask" [];
+  let lev_loop = Lev.Loop.create ~flags () in
   Lazy.force Thread.block_signals;
   Signal_watcher.init ();
   let thread_jobs = Queue.create () in
