@@ -124,7 +124,9 @@ module Thread = struct
 
   (* TODO undo when scheduler is done *)
   let block_signals =
-    lazy (ignore (Unix.sigprocmask SIG_BLOCK blocked_signals : int list))
+    lazy
+      (if not Sys.win32 then
+       ignore (Unix.sigprocmask SIG_BLOCK blocked_signals : int list))
 
   let spawn_thread =
     let spawn f =
