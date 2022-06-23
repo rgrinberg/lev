@@ -120,9 +120,21 @@ module Thread = struct
 
   type t = { worker : job Worker.t }
 
-  let spawn_thread f =
-    let (_ : Thread.t) = Thread.create f () in
-    ()
+  let blocked_signals = [ Sys.sigchld ]
+
+  (* TODO undo when scheduler is done *)
+  let block_signals =
+    lazy (ignore (Unix.sigprocmask SIG_BLOCK blocked_signals : int list))
+
+  let spawn_thread =
+    let spawn f =
+      let (_ : Thread.t) = Thread.create f () in
+      ()
+    in
+    if Sys.win32 then spawn
+    else fun f ->
+      Lazy.force block_signals;
+      spawn f
 
   let create =
     let finish_job t fill =
@@ -173,6 +185,17 @@ module Thread = struct
         Fiber.Ivar.fill task.ivar (Error `Cancelled)
 
   let close t = Worker.complete_tasks_and_stop t.worker
+  let wait_signal = Thread.wait_signal
+end
+
+module Signal_watcher = struct
+  let run () =
+    while true do
+      let signal = Thread.wait_signal Thread.blocked_signals in
+      Lev.Loop.feed_signal ~signal
+    done
+
+  let init () = if Sys.win32 then () else Thread.spawn_thread run
 end
 
 module Timer = struct
@@ -1033,6 +1056,8 @@ let run (type a) lev_loop ~(f : unit -> a Fiber.t) : a =
   if Lev.Loop.is_default lev_loop then
     Code_error.raise
       "Lev_fiber.run: does not accept the default loop. Create a new loop." [];
+  Lazy.force Thread.block_signals;
+  Signal_watcher.init ();
   let thread_jobs = Queue.create () in
   let thread_mutex = Mutex.create () in
   let queue = Queue.create () in
