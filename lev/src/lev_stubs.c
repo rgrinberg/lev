@@ -178,12 +178,6 @@ CAMLprim value lev_version(value v_unit) {
   CAMLreturn(v_version);
 }
 
-CAMLprim value lev_feed_signal(value v_sig) {
-  CAMLparam1(v_sig);
-  ev_feed_signal(Int_val(v_sig));
-  CAMLreturn(Val_unit);
-}
-
 CAMLprim value lev_loop_backend(value v_loop) {
   CAMLparam1(v_loop);
   struct ev_loop *loop = (struct ev_loop *)Nativeint_val(v_loop);
@@ -497,6 +491,21 @@ CAMLprim value lev_embed_sweep(value v_embed, value v_loop) {
   struct ev_loop *loop = (struct ev_loop *)Nativeint_val(v_loop);
   ev_embed *embed = Ev_val(ev_embed, v_embed);
   ev_embed_sweep(loop, embed);
+  CAMLreturn(Val_unit);
+}
+
+CAMLprim value lev_feed_signal(value v_signal) {
+  CAMLparam1(v_signal);
+  int signal = caml_convert_signal_number(Int_val(v_signal));
+  ev_feed_signal(signal);
+  CAMLreturn(Val_unit);
+}
+
+CAMLprim value lev_loop_feed_signal_event(value v_loop, value v_signal) {
+  CAMLparam2(v_loop, v_signal);
+  int signal = caml_convert_signal_number(Int_val(v_signal));
+  struct ev_loop *loop = (struct ev_loop *)Nativeint_val(v_loop);
+  ev_feed_signal_event(loop, signal);
   CAMLreturn(Val_unit);
 }
 

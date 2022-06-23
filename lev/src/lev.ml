@@ -227,6 +227,10 @@ module Loop = struct
   external resume : t -> unit = "lev_loop_resume"
   external ref : t -> unit = "lev_loop_ref"
   external unref : t -> unit = "lev_loop_unref"
+  external feed_signal : signal:int -> unit = "lev_feed_signal"
+
+  external feed_signal_event : t -> signal:int -> unit
+    = "lev_loop_feed_signal_event"
 end
 
 module type Watcher = sig
