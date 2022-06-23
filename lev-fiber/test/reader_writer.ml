@@ -28,7 +28,7 @@ let%expect_test "pipe" =
         Exn_with_backtrace.reraise exn)
       f
   in
-  Lev_fiber.run (Lev.Loop.create ()) ~f:(print_errors run);
+  Lev_fiber.run (print_errors run);
   [%expect {|
     writer: finished
     read: "foobar" |}]
@@ -62,7 +62,7 @@ let%expect_test "write with resize" =
         Exn_with_backtrace.reraise exn)
       f
   in
-  Lev_fiber.run (Lev.Loop.create ()) ~f:(print_errors run);
+  Lev_fiber.run (print_errors run);
   [%expect {|
     writer: finished
     read: 6120 length |}]
@@ -88,7 +88,7 @@ let%expect_test "blocking pipe" =
     in
     Fiber.fork_and_join_unit reader writer
   in
-  Lev_fiber.run (Lev.Loop.create ()) ~f:run;
+  Lev_fiber.run run;
   [%expect {|
     writer: finished
     read: "foo bar baz" |}]
@@ -123,7 +123,7 @@ let with_pipe_test output f =
         Io.close ic)
       writer
   in
-  Lev_fiber.run (Lev.Loop.create ()) ~f:run
+  Lev_fiber.run run
 
 let%expect_test "read lines" =
   with_pipe_test "foo\nbar\r\n\nbaz\r\r\neof" (fun r ->

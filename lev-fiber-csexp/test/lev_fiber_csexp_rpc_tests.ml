@@ -50,7 +50,7 @@ let%expect_test "serve/connect" =
     in
     Fiber.fork_and_join_unit client server
   in
-  Lev_fiber.run (Lev.Loop.create ()) ~f:run;
+  Lev_fiber.run run;
   [%expect
     {|
     server: started

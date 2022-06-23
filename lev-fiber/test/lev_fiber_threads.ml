@@ -9,7 +9,7 @@ let%expect_test "create thread" =
     let+ result = Thread.await task in
     match result with Error _ -> assert false | Ok () -> Thread.close thread
   in
-  run (Lev.Loop.create ()) ~f;
+  run f;
   [%expect {| in thread |}]
 
 let%expect_test "cancellation" =
@@ -34,5 +34,5 @@ let%expect_test "cancellation" =
     (match res with Ok () -> () | Error _ -> assert false);
     Thread.close thread
   in
-  run (Lev.Loop.create ()) ~f;
+  run f;
   [%expect {| Successful cancellation |}]

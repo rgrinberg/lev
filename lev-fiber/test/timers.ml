@@ -4,7 +4,7 @@ module Timer = Lev_fiber.Timer
 module Wheel = Timer.Wheel
 
 let%expect_test "sleep" =
-  Lev_fiber.run (Lev.Loop.create ()) ~f:(fun () ->
+  Lev_fiber.run (fun () ->
       print_endline "sleep";
       let+ () = Lev_fiber.Timer.sleepf 0.1 in
       print_endline "awake");
@@ -13,7 +13,7 @@ let%expect_test "sleep" =
     awake |}]
 
 let%expect_test "timer wheel start/stop" =
-  Lev_fiber.run (Lev.Loop.create ()) ~f:(fun () ->
+  Lev_fiber.run (fun () ->
       let* wheel = Wheel.create ~delay:10. in
       Fiber.fork_and_join_unit
         (fun () ->
@@ -27,7 +27,7 @@ let%expect_test "timer wheel start/stop" =
     wheel: stop |}]
 
 let%expect_test "timer wheel cancellation" =
-  Lev_fiber.run (Lev.Loop.create ()) ~f:(fun () ->
+  Lev_fiber.run (fun () ->
       let* wheel = Wheel.create ~delay:10. in
       Fiber.fork_and_join_unit
         (fun () ->
@@ -47,7 +47,7 @@ let%expect_test "timer wheel cancellation" =
     wheel: stop |}]
 
 let%expect_test "timer wheel cancellation" =
-  Lev_fiber.run (Lev.Loop.create ()) ~f:(fun () ->
+  Lev_fiber.run (fun () ->
       let delay = 0.3 in
       let sleep () = Timer.sleepf (delay /. 2.) in
       let* wheel = Wheel.create ~delay in
@@ -83,7 +83,7 @@ let%expect_test "timer wheel cancellation" =
     2 finished |}]
 
 let%expect_test "wheel - stopping with running timers" =
-  Lev_fiber.run (Lev.Loop.create ()) ~f:(fun () ->
+  Lev_fiber.run (fun () ->
       let* wheel = Wheel.create ~delay:1.0 in
       Fiber.fork_and_join_unit
         (fun () ->
@@ -106,7 +106,7 @@ let%expect_test "wheel - stopping with running timers" =
     timer cancelled |}]
 
 let%expect_test "wheel - reset" =
-  Lev_fiber.run (Lev.Loop.create ()) ~f:(fun () ->
+  Lev_fiber.run (fun () ->
       let delay = 0.1 in
       let* wheel = Wheel.create ~delay in
       let* task = Wheel.task wheel in
@@ -135,7 +135,7 @@ let%expect_test "wheel - reset" =
     success after reset |}]
 
 let%expect_test "wheel - set_delay" =
-  Lev_fiber.run (Lev.Loop.create ()) ~f:(fun () ->
+  Lev_fiber.run (fun () ->
       let* wheel = Wheel.create ~delay:200. in
       let* task = Wheel.task wheel in
       let test () =

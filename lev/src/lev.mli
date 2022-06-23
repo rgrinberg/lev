@@ -89,6 +89,7 @@ module Loop : sig
       val inter : t -> t -> t
       val union : t -> t -> t
       val negate : t -> t
+      val mem : t -> elt -> bool
     end
   end
 
