@@ -14,8 +14,8 @@
 (implicit_transitive_deps false)
 
 (package
- (synopsis "Bindings to libev.")
- (description "Low level bindings to libev.")
+ (synopsis "Bindings to libev")
+ (description "Low level bindings to libev")
  (name lev)
  (depends
   (ppx_expect :with-test)
