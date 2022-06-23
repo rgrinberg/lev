@@ -118,6 +118,8 @@ module Loop : sig
   val resume : t -> unit
   val ref : t -> unit
   val unref : t -> unit
+  val feed_signal : signal:int -> unit
+  val feed_signal_event : t -> signal:int -> unit
 end
 
 module type Watcher = sig
