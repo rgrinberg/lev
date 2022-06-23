@@ -40,7 +40,7 @@
  (name lev-fiber-csexp)
  (depends
   (ppx_expect :with-test)
-  lev_fiber
+  lev-fiber
   stdune
   dyn
   csexp
