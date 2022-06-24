@@ -31,7 +31,7 @@ let%expect_test "serve/connect" =
       Csexp_rpc.Session.write session None
     and server () =
       let fd = socket () in
-      Unix.setsockopt (Lev_fiber.Fd.fd fd) Unix.SO_REUSEADDR true;
+      Unix.setsockopt (Lev_fiber.Fd.fd_exn fd) Unix.SO_REUSEADDR true;
       let* server = Lev_fiber.Socket.Server.create fd sockaddr ~backlog:10 in
       printfn "server: started";
       let* () = Fiber.Ivar.fill ready_client () in

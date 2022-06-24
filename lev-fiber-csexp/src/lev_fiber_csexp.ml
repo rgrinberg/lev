@@ -126,7 +126,7 @@ module Session = struct
             | true -> (
                 try
                   let fd = Io.fd out_channel in
-                  Unix.shutdown (Lev_fiber.Fd.fd fd) Unix.SHUTDOWN_ALL
+                  Unix.shutdown (Lev_fiber.Fd.fd_exn fd) Unix.SHUTDOWN_ALL
                 with Unix.Unix_error (_, _, _) -> ()));
             close t;
             Fiber.return ()
