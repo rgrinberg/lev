@@ -412,8 +412,8 @@ module Fd = struct
   type kind = Blocking | Non_blocking of { mutable set : bool }
   type t = { fd : Unix.file_descr; kind : kind; mutable closed : bool }
 
-  let fd t =
-    assert (not t.closed);
+  let fd_exn t =
+    if t.closed then raise (Unix.Unix_error (Unix.EBADF, "closed fd", ""));
     t.fd
 
   let close t =
