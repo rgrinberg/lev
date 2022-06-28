@@ -60,6 +60,7 @@ module Process_watcher = struct
     Process_table.spawn t.table pid
 
   let cleanup t =
+    (* XXX shall we kill the running processes here? *)
     match t.watcher with
     | Poll s ->
         Lev.Timer.stop s t.loop;
