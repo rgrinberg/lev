@@ -5,7 +5,10 @@ module Csexp_rpc = Lev_fiber_csexp
 let%expect_test "serve/connect" =
   let path = "levfibercsexp.sock" in
   (try Unix.unlink path with Unix.Unix_error _ -> ());
-  let sockaddr = Unix.ADDR_UNIX path in
+  let sockaddr =
+    if Sys.win32 then Unix.ADDR_INET (Unix.inet_addr_any, 0)
+    else Unix.ADDR_UNIX path
+  in
   let domain = Unix.domain_of_sockaddr sockaddr in
   let socket () =
     Lev_fiber.Fd.create
