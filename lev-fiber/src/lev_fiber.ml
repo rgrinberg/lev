@@ -3,6 +3,29 @@ open Fiber.O
 open Lev_fiber_util
 module Timestamp = Lev.Timestamp
 
+module Signal_watcher = struct
+  type t = { thread : Thread.t; old_sigmask : int list }
+
+  let stop_sig = Sys.sigusr2
+  let blocked_signals = [ Sys.sigchld; stop_sig ]
+
+  let stop t =
+    Unix.kill (Unix.getpid ()) stop_sig;
+    Thread.join t.thread
+
+  let run () =
+    while true do
+      let signal = Thread.wait_signal blocked_signals in
+      if signal = Sys.sigusr2 then raise_notrace Thread.Exit
+      else Lev.Loop.feed_signal ~signal
+    done
+
+  let create () =
+    let old_sigmask = Unix.sigprocmask SIG_BLOCK blocked_signals in
+    let thread = Thread.create run () in
+    { thread; old_sigmask }
+end
+
 module Process_watcher = struct
   module Process_table = struct
     type process = { pid : Pid.t; ivar : Unix.process_status Fiber.Ivar.t }
@@ -81,6 +104,7 @@ type t = {
   thread_jobs : thread_job Queue.t;
   thread_mutex : Mutex.t;
   process_watcher : Process_watcher.t;
+  signal_watcher : Signal_watcher.t option (* [None] on windows *);
 }
 
 type scheduler = t
@@ -121,24 +145,6 @@ module Thread = struct
 
   type t = { worker : job Worker.t }
 
-  let blocked_signals = [ Sys.sigchld ]
-
-  (* TODO undo when scheduler is done *)
-  let block_signals =
-    lazy
-      (if not Sys.win32 then
-       ignore (Unix.sigprocmask SIG_BLOCK blocked_signals : int list))
-
-  let spawn_thread =
-    let spawn f =
-      let (_ : Thread.t) = Thread.create f () in
-      ()
-    in
-    if Sys.win32 then spawn
-    else fun f ->
-      Lazy.force block_signals;
-      spawn f
-
   let create =
     let finish_job t fill =
       Mutex.lock t.thread_mutex;
@@ -156,7 +162,10 @@ module Thread = struct
         in
         finish_job t { status; ivar = Fiber.Fill (ivar, res) }
       in
-      let worker = Worker.create ~spawn_thread ~do_no_raise in
+      let worker =
+        Worker.create ~do_no_raise ~spawn_thread:(fun f ->
+            ignore @@ Thread.create f ())
+      in
       { worker }
 
   type 'a task = {
@@ -188,17 +197,6 @@ module Thread = struct
         Fiber.Ivar.fill task.ivar (Error `Cancelled)
 
   let close t = Worker.complete_tasks_and_stop t.worker
-  let wait_signal = Thread.wait_signal
-end
-
-module Signal_watcher = struct
-  let run () =
-    while true do
-      let signal = Thread.wait_signal Thread.blocked_signals in
-      Lev.Loop.feed_signal ~signal
-    done
-
-  let init () = if Sys.win32 then () else Thread.spawn_thread run
 end
 
 module Timer = struct
@@ -1060,8 +1058,9 @@ let run (type a) ?(flags = Lev.Loop.Flag.Set.singleton Nosigmask)
   if not (Lev.Loop.Flag.Set.mem flags Nosigmask) then
     Code_error.raise "flags must include Nosigmask" [];
   let lev_loop = Lev.Loop.create ~flags () in
-  Lazy.force Thread.block_signals;
-  Signal_watcher.init ();
+  let signal_watcher =
+    if Sys.win32 then None else Some (Signal_watcher.create ())
+  in
   let thread_jobs = Queue.create () in
   let thread_mutex = Mutex.create () in
   let queue = Queue.create () in
@@ -1085,6 +1084,7 @@ let run (type a) ?(flags = Lev.Loop.Flag.Set.singleton Nosigmask)
     Fiber.Var.set t
       {
         loop = lev_loop;
+        signal_watcher;
         queue;
         async;
         thread_mutex;
@@ -1113,4 +1113,11 @@ let run (type a) ?(flags = Lev.Loop.Flag.Set.singleton Nosigmask)
   in
   Exn.protect
     ~f:(fun () -> Fiber.run f ~iter:(fun () -> iter lev_loop queue))
-    ~finally:(fun () -> Process_watcher.cleanup process_watcher)
+    ~finally:(fun () ->
+      Process_watcher.cleanup process_watcher;
+      match signal_watcher with
+      | None -> ()
+      | Some sw ->
+          Signal_watcher.stop sw;
+          let (_ : int list) = Unix.sigprocmask SIG_SETMASK sw.old_sigmask in
+          ())
