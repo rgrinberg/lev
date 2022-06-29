@@ -36,3 +36,15 @@ let%expect_test "cancellation" =
   in
   run f;
   [%expect {| Successful cancellation |}]
+
+let%expect_test "deadlock" =
+  let f () =
+    let+ _ = Fiber.never in
+    ()
+  in
+  try
+    run f;
+    assert false
+  with Code_error.E e ->
+    print_endline e.message;
+    [%expect {| deadlock |}]
