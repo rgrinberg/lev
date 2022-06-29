@@ -97,6 +97,7 @@ end
 
 type thread_job_status = Active | Complete | Cancelled
 type thread_job = { status : thread_job_status ref; ivar : Fiber.fill }
+type worker = Worker : 'a Worker.t -> worker
 
 type t = {
   loop : Lev.Loop.t;
@@ -107,11 +108,13 @@ type t = {
   thread_mutex : Mutex.t;
   process_watcher : Process_watcher.t;
   signal_watcher : Signal_watcher.t option (* [None] on windows *);
+  mutable thread_workers : worker list;
 }
 
 type scheduler = t
 
 let t : t Fiber.Var.t = Fiber.Var.create ()
+let t_var = t
 let scheduler = t
 
 module Buffer = struct
@@ -145,7 +148,7 @@ module Thread = struct
       }
         -> job
 
-  type t = { worker : job Worker.t; loop : Lev.Loop.t }
+  type nonrec t = { worker : job Worker.t; scheduler : t }
 
   let create =
     let finish_job t fill =
@@ -165,10 +168,10 @@ module Thread = struct
         finish_job t { status; ivar = Fiber.Fill (ivar, res) }
       in
       let worker =
-        Worker.create ~do_no_raise ~spawn_thread:(fun f ->
-            ignore @@ Thread.create f ())
+        Worker.create ~do_no_raise ~spawn_thread:(fun f -> Thread.create f ())
       in
-      { worker; loop = t.loop }
+      t.thread_workers <- Worker worker :: t.thread_workers;
+      { worker; scheduler = t }
 
   type 'a task = {
     ivar :
@@ -181,14 +184,14 @@ module Thread = struct
   let task (t : t) ~f =
     Fiber.of_thunk (fun () ->
         let ivar = Fiber.Ivar.create () in
-        Lev.Loop.ref t.loop;
+        Lev.Loop.ref t.scheduler.loop;
         let status = ref Active in
         let task =
           match Worker.add_work t.worker (Job { run = f; status; ivar }) with
           | Ok task -> task
           | Error `Stopped -> Code_error.raise "already stopped" []
         in
-        Fiber.return { ivar; task; status; loop = t.loop })
+        Fiber.return { ivar; task; status; loop = t.scheduler.loop })
 
   let await task = Fiber.Ivar.read task.ivar
 
@@ -201,7 +204,13 @@ module Thread = struct
         Worker.cancel_if_not_consumed task.task;
         Fiber.Ivar.fill task.ivar (Error `Cancelled)
 
-  let close t = Worker.complete_tasks_and_stop t.worker
+  let close t =
+    t.scheduler.thread_workers <-
+      (let id = Worker.id t.worker in
+       List.filter t.scheduler.thread_workers ~f:(fun (Worker w) ->
+           let id' = Worker.id w in
+           not (Worker.Id.equal id id')));
+    Worker.complete_tasks_and_stop t.worker
 end
 
 module Timer = struct
@@ -1087,19 +1096,19 @@ let run (type a) ?(flags = Lev.Loop.Flag.Set.singleton Nosigmask)
   Lev.Async.start async lev_loop;
   Lev.Loop.unref lev_loop;
   let process_watcher = Process_watcher.create lev_loop queue in
-  let f =
-    Fiber.Var.set t
-      {
-        loop = lev_loop;
-        signal_watcher;
-        queue;
-        async;
-        thread_mutex;
-        thread_jobs;
-        process_watcher;
-      }
-      f
+  let t =
+    {
+      loop = lev_loop;
+      signal_watcher;
+      queue;
+      async;
+      thread_mutex;
+      thread_jobs;
+      process_watcher;
+      thread_workers = [];
+    }
   in
+  let f = Fiber.Var.set t_var t f in
   let rec events q acc =
     match Queue.pop q with None -> acc | Some e -> events q (e :: acc)
   in
@@ -1113,9 +1122,7 @@ let run (type a) ?(flags = Lev.Loop.Flag.Set.singleton Nosigmask)
     | None -> (
         let res = Lev.Loop.run loop Once in
         match res with
-        | `No_more_active_watchers ->
-            (* TODO incorrect if there are active threads *)
-            iter_or_deadlock q
+        | `No_more_active_watchers -> iter_or_deadlock q
         | `Otherwise -> iter loop q)
   in
   Exn.protect
@@ -1129,4 +1136,7 @@ let run (type a) ?(flags = Lev.Loop.Flag.Set.singleton Nosigmask)
           Signal_watcher.stop sw;
           let (_ : int list) = Unix.sigprocmask SIG_SETMASK sw.old_sigmask in
           ());
+      List.iter t.thread_workers ~f:(fun (Worker w) ->
+          Worker.complete_tasks_and_stop w;
+          Worker.join w);
       Lev.Async.destroy async)
