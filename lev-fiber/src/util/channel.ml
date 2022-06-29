@@ -71,4 +71,7 @@ let remove_if_not_consumed (Node (m, n)) =
   with_mutex m ~f:(fun () -> Removable_queue.remove n)
 
 let close t =
-  with_mutex t.m ~f:(fun () -> if not t.is_closed then t.is_closed <- true)
+  with_mutex t.m ~f:(fun () ->
+      if not t.is_closed then (
+        t.is_closed <- true;
+        Condition.signal t.c))
