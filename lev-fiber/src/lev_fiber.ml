@@ -29,9 +29,9 @@ end
 module Process_watcher = struct
   module Process_table = struct
     type process = { pid : Pid.t; ivar : Unix.process_status Fiber.Ivar.t }
-    type t = { active : (Pid.t, process) Table.t }
+    type t = { loop : Lev.Loop.t; active : (Pid.t, process) Table.t }
 
-    let create () = { active = Table.create (module Pid) 16 }
+    let create loop = { loop; active = Table.create (module Pid) 16 }
 
     let spawn t pid =
       let ivar = Fiber.Ivar.create () in
@@ -47,6 +47,7 @@ module Process_watcher = struct
           match pid with
           | 0 -> true
           | _ ->
+              Lev.Loop.unref t.loop;
               Queue.push queue (Fiber.Fill (process.ivar, status));
               false)
   end
@@ -55,7 +56,7 @@ module Process_watcher = struct
   type t = { loop : Lev.Loop.t; table : Process_table.t; watcher : watcher }
 
   let create loop queue =
-    let table = Process_table.create () in
+    let table = Process_table.create loop in
     let watcher =
       if Sys.win32 then
         let reap timer =
@@ -80,6 +81,7 @@ module Process_watcher = struct
 
   let waitpid t ~pid =
     ensure_started t;
+    Lev.Loop.ref t.loop;
     Process_table.spawn t.table pid
 
   let cleanup t =
@@ -143,7 +145,7 @@ module Thread = struct
       }
         -> job
 
-  type t = { worker : job Worker.t }
+  type t = { worker : job Worker.t; loop : Lev.Loop.t }
 
   let create =
     let finish_job t fill =
@@ -166,25 +168,27 @@ module Thread = struct
         Worker.create ~do_no_raise ~spawn_thread:(fun f ->
             ignore @@ Thread.create f ())
       in
-      { worker }
+      { worker; loop = t.loop }
 
   type 'a task = {
     ivar :
       ('a, [ `Exn of Exn_with_backtrace.t | `Cancelled ]) result Fiber.Ivar.t;
     task : Worker.task;
     status : thread_job_status ref;
+    loop : Lev.Loop.t;
   }
 
-  let task t ~f =
+  let task (t : t) ~f =
     Fiber.of_thunk (fun () ->
         let ivar = Fiber.Ivar.create () in
+        Lev.Loop.ref t.loop;
         let status = ref Active in
         let task =
           match Worker.add_work t.worker (Job { run = f; status; ivar }) with
           | Ok task -> task
           | Error `Stopped -> Code_error.raise "already stopped" []
         in
-        Fiber.return { ivar; task; status })
+        Fiber.return { ivar; task; status; loop = t.loop })
 
   let await task = Fiber.Ivar.read task.ivar
 
@@ -192,6 +196,7 @@ module Thread = struct
     match !(task.status) with
     | Cancelled | Complete -> Fiber.return ()
     | Active ->
+        Lev.Loop.unref task.loop;
         task.status := Cancelled;
         Worker.cancel_if_not_consumed task.task;
         Fiber.Ivar.fill task.ivar (Error `Cancelled)
@@ -1071,6 +1076,7 @@ let run (type a) ?(flags = Lev.Loop.Flag.Set.singleton Nosigmask)
           let { ivar; status } = Queue.pop_exn thread_jobs in
           match !status with
           | Active ->
+              Lev.Loop.unref lev_loop;
               status := Complete;
               Queue.push queue ivar
           | Cancelled -> ()
@@ -1079,6 +1085,7 @@ let run (type a) ?(flags = Lev.Loop.Flag.Set.singleton Nosigmask)
         Mutex.unlock thread_mutex)
   in
   Lev.Async.start async lev_loop;
+  Lev.Loop.unref lev_loop;
   let process_watcher = Process_watcher.create lev_loop queue in
   let f =
     Fiber.Var.set t
@@ -1115,9 +1122,11 @@ let run (type a) ?(flags = Lev.Loop.Flag.Set.singleton Nosigmask)
     ~f:(fun () -> Fiber.run f ~iter:(fun () -> iter lev_loop queue))
     ~finally:(fun () ->
       Process_watcher.cleanup process_watcher;
-      match signal_watcher with
+      Lev.Async.stop async lev_loop;
+      (match signal_watcher with
       | None -> ()
       | Some sw ->
           Signal_watcher.stop sw;
           let (_ : int list) = Unix.sigprocmask SIG_SETMASK sw.old_sigmask in
-          ())
+          ());
+      Lev.Async.destroy async)
