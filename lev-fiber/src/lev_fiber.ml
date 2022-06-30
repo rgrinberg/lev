@@ -34,6 +34,7 @@ module Process_watcher = struct
     let create loop = { loop; active = Table.create (module Pid) 16 }
 
     let spawn t pid =
+      Lev.Loop.ref t.loop;
       let ivar = Fiber.Ivar.create () in
       let process = { pid; ivar } in
       Table.add_exn t.active pid process;
@@ -81,7 +82,6 @@ module Process_watcher = struct
 
   let waitpid t ~pid =
     ensure_started t;
-    Lev.Loop.ref t.loop;
     Process_table.spawn t.table pid
 
   let cleanup t =
