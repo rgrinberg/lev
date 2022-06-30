@@ -66,7 +66,7 @@ module Process_watcher = struct
         let watcher = Lev.Timer.create ~repeat:0.05 ~after:0.05 reap in
         Poll watcher
       else
-        let reap _ = Process_table.reap table queue in
+        let reap (_ : Lev.Signal.t) = Process_table.reap table queue in
         let watcher = Lev.Signal.create reap ~signal:Sys.sigchld in
         Lev.Signal.start watcher loop;
         Lev.Loop.unref loop;
