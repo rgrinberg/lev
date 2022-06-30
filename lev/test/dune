@@ -28,7 +28,7 @@
   ppx_inline_test.config)
  (inline_tests
   (enabled_if
-   (<> %{system} win)))
+   (= %{os_type} Unix)))
  (preprocess
   (pps ppx_expect)))
 
@@ -47,6 +47,6 @@
   ppx_inline_test.config)
  (inline_tests
   (enabled_if
-   (<> %{system} win)))
+   (= %{os_type} Unix)))
  (preprocess
   (pps ppx_expect)))
