@@ -184,11 +184,12 @@ module Thread = struct
   let task (t : t) ~f =
     Fiber.of_thunk (fun () ->
         let ivar = Fiber.Ivar.create () in
-        Lev.Loop.ref t.scheduler.loop;
         let status = ref Active in
         let task =
           match Worker.add_work t.worker (Job { run = f; status; ivar }) with
-          | Ok task -> task
+          | Ok task ->
+              Lev.Loop.ref t.scheduler.loop;
+              task
           | Error `Stopped -> Code_error.raise "already stopped" []
         in
         Fiber.return { ivar; task; status; loop = t.scheduler.loop })
