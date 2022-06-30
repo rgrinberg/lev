@@ -182,17 +182,13 @@ module Thread = struct
   }
 
   let task (t : t) ~f =
-    Fiber.of_thunk (fun () ->
-        let ivar = Fiber.Ivar.create () in
-        let status = ref Active in
-        let task =
-          match Worker.add_work t.worker (Job { run = f; status; ivar }) with
-          | Ok task ->
-              Lev.Loop.ref t.scheduler.loop;
-              task
-          | Error `Stopped -> Code_error.raise "already stopped" []
-        in
-        Fiber.return { ivar; task; status; loop = t.scheduler.loop })
+    let ivar = Fiber.Ivar.create () in
+    let status = ref Active in
+    match Worker.add_work t.worker (Job { run = f; status; ivar }) with
+    | Error `Stopped -> Error `Stopped
+    | Ok task ->
+        Lev.Loop.ref t.scheduler.loop;
+        Ok { ivar; task; status; loop = t.scheduler.loop }
 
   let await task = Fiber.Ivar.read task.ivar
 
@@ -581,7 +577,11 @@ module Io = struct
         | `Ready fd -> (
             match f fd with exception exn -> Error (`Exn exn) | s -> Ok s))
     | Blocking (th, fd) -> (
-        let* task = Thread.task th ~f:(fun () -> f fd) in
+        let task =
+          match Thread.task th ~f:(fun () -> f fd) with
+          | Error `Stopped -> Code_error.raise "already stopped" []
+          | Ok task -> task
+        in
         let+ res = Thread.await task in
         match res with
         | Ok _ as s -> s
