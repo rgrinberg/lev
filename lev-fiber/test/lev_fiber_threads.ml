@@ -1,5 +1,8 @@
 open Stdune
 open Fiber.O
+
+let thread_yield () = Thread.yield ()
+
 open Lev_fiber
 
 let%expect_test "create thread" =
@@ -24,7 +27,7 @@ let%expect_test "cancellation" =
       match
         Thread.task thread ~f:(fun () ->
             while Atomic.get keep_running do
-              ()
+              thread_yield ()
             done)
       with
       | Ok s -> s
