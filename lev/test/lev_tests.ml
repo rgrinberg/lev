@@ -35,8 +35,9 @@ let%expect_test "create and run" =
 
 let%expect_test "read from pipe" =
   let r, w = Unix.pipe () in
-  Unix.set_nonblock r;
-  Unix.set_nonblock w;
+  (* if not Sys.win32 then ( *)
+  (*   Unix.set_nonblock r; *)
+  (*   Unix.set_nonblock w); *)
   let loop = Loop.create () in
   let io_r =
     Io.create
