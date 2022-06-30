@@ -1,6 +1,5 @@
 (library
  (name lev_fiber_util_tests)
- (modules :standard \ bip_buffer_tests)
  (libraries
   lev_fiber_util
   stdune
@@ -14,24 +13,5 @@
   base
   ppx_inline_test.config)
  (inline_tests)
- (preprocess
-  (pps ppx_expect)))
-
-(library
- (name bip_buffer_tests)
- (modules bip_buffer_tests)
- (inline_tests
-  (enabled_if
-   (<> %{system} win)))
- (libraries
-  lev_fiber_util
-  stdune
-  ;; This is because of the (implicit_transitive_deps false)
-  ;; in dune-project
-  ppx_expect.config
-  ppx_expect.config_types
-  ppx_expect.common
-  base
-  ppx_inline_test.config)
  (preprocess
   (pps ppx_expect)))
