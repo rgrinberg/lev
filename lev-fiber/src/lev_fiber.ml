@@ -976,12 +976,15 @@ module Socket = struct
     Lev.Io.start io scheduler.loop;
     Fiber.Ivar.read ivar
 
-  let connect (fd : Fd.t) sock =
+  let rec connect (fd : Fd.t) sock =
     let* scheduler = Fiber.Var.get_exn scheduler in
     Fd.set_nonblock fd;
     match Unix.connect fd.fd sock with
     | () -> Fiber.return ()
     | exception Unix.Unix_error (Unix.EISCONN, _, _) -> Fiber.return ()
+    | exception Unix.Unix_error (Unix.EWOULDBLOCK, _, _) when Sys.win32 ->
+        let* () = writeable_fd scheduler fd.fd in
+        connect fd sock
     | exception Unix.Unix_error (Unix.EINPROGRESS, _, _) -> (
         let+ () = writeable_fd scheduler fd.fd in
         match Unix.getsockopt_error fd.fd with
