@@ -2,6 +2,8 @@ open Printf
 open Lev
 module List = ListLabels
 
+let immediately = 0.00001
+
 let%expect_test "version" =
   let major, minor = ev_version () in
   printf "version (%d, %d)\n" major minor;
@@ -47,7 +49,9 @@ let%expect_test "timer" =
 
 let%expect_test "timer - not repeats" =
   let loop = Loop.create () in
-  let timer = Timer.create ~after:0.0 (fun _ -> print_endline "fired timer") in
+  let timer =
+    Timer.create ~after:immediately (fun _ -> print_endline "fired timer")
+  in
   Timer.start timer loop;
   ignore (Lev.Loop.run loop Once);
   ignore (Lev.Loop.run loop Once);
@@ -197,7 +201,7 @@ let%expect_test "timer - stops automatically" =
   let loop = Loop.create () in
   let another = ref true in
   let timer =
-    Timer.create ~after:0.01 (fun t ->
+    Timer.create ~after:immediately (fun t ->
         print_endline "timer fired";
         if !another then (
           another := false;
@@ -213,7 +217,7 @@ let%expect_test "timer/again cancels start" =
   let loop = Loop.create () in
   let count = ref 0 in
   let timer =
-    Timer.create ~after:0.0 (fun _ ->
+    Timer.create ~after:immediately (fun _ ->
         incr count;
         printf "timer fired %d\n" !count)
   in
@@ -238,7 +242,7 @@ let%expect_test "timer/consecutive again" =
   in
   let control =
     let count = ref 3 in
-    Timer.create ~after:0.0 ~repeat:0.2 (fun t ->
+    Timer.create ~after:immediately ~repeat:0.2 (fun t ->
         if !count = 0 then Timer.stop t loop
         else (
           decr count;
