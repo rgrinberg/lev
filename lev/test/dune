@@ -1,6 +1,6 @@
 (library
  (name lev_tests)
- (modules lev_tests)
+ (modules lev_tests sockets)
  (libraries
   lev
   ;; This is because of the (implicit_transitive_deps false)
