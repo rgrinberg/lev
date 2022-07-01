@@ -981,7 +981,8 @@ module Socket = struct
     Fd.set_nonblock fd;
     match Unix.connect fd.fd sock with
     | () -> Fiber.return ()
-    | exception Unix.Unix_error (Unix.EISCONN, _, _) -> Fiber.return ()
+    | exception Unix.Unix_error (Unix.EISCONN, _, _) when Sys.win32 ->
+        Fiber.return ()
     | exception Unix.Unix_error (Unix.EWOULDBLOCK, _, _) when Sys.win32 ->
         let* () = writeable_fd scheduler fd.fd in
         connect fd sock
