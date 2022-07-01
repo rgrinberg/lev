@@ -6,7 +6,7 @@ let%expect_test "server & client" =
   let path = "levfiber.sock" in
   (try Unix.unlink path with Unix.Unix_error _ -> ());
   let server_sockaddr =
-    if Sys.win32 then Unix.ADDR_INET (Unix.inet_addr_any, 0)
+    if Sys.win32 then Unix.ADDR_INET (Unix.inet_addr_loopback, 0)
     else Unix.ADDR_UNIX path
   in
   let domain = Unix.domain_of_sockaddr server_sockaddr in
