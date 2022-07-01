@@ -1,5 +1,5 @@
 let%expect_test "server & client" =
-  let server_sockaddr = Unix.ADDR_INET (Unix.inet_addr_any, 0) in
+  let server_sockaddr = Unix.ADDR_INET (Unix.inet_addr_loopback, 0) in
   let domain = Unix.domain_of_sockaddr server_sockaddr in
   let socket () = Unix.socket ~cloexec:true domain Unix.SOCK_STREAM 0 in
   let loop = Lev.Loop.create () in
@@ -43,7 +43,8 @@ let%expect_test "server & client" =
     Lev.Io.start io loop
   in
   Lev.Loop.run_until_done loop;
-  [%expect {|
+  [%expect
+    {|
     server: listening
     client: connecting
     server: accepting client
