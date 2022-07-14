@@ -588,13 +588,6 @@ module Io = struct
         | Error `Cancelled -> assert false
         | Error (`Exn exn) -> Error (`Exn exn.exn))
 
-  let close_fd t =
-    match t with
-    | Non_blocking fd -> Lev_fd.close fd
-    | Blocking (th, fd) ->
-        Thread.close th;
-        Fd.close fd
-
   type 'a open_ = { mutable buffer : Buffer.t; kind : 'a kind; fd : fd }
   type 'a t = 'a open_ State.t
 
@@ -721,15 +714,23 @@ module Io = struct
         in
         (r, w)
 
-  let close (type a) (t : a t) =
-    match !t with
-    | State.Closed -> ()
-    | Open o ->
-        (match (o.kind : _ kind) with
-        | Read r -> r.eof <- true
-        | Write _ -> () (* TODO *));
-        close_fd o.fd;
-        t := Closed
+  let close =
+    let close_fd t =
+      match t with
+      | Non_blocking fd -> Lev_fd.close fd
+      | Blocking (th, fd) ->
+          Thread.close th;
+          Fd.close fd
+    in
+    fun (type a) (t : a t) ->
+      match !t with
+      | State.Closed -> ()
+      | Open o ->
+          (match (o.kind : _ kind) with
+          | Read r -> r.eof <- true
+          | Write _ -> () (* TODO *));
+          close_fd o.fd;
+          t := Closed
 
   module Reader = struct
     type t = input open_
