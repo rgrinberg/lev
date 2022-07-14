@@ -128,11 +128,13 @@ module Buffer = struct
 end
 
 module State = struct
-  type 'a t' = Open of 'a | Closed
-  type 'a t = 'a t' ref
+  type ('a, 'b) t' = Open of 'a | Closed of 'b
+  type ('a, 'b) t = ('a, 'b) t' ref
 
   let check_open t =
-    match !t with Closed -> Code_error.raise "must be opened" [] | Open a -> a
+    match !t with
+    | Closed _ -> Code_error.raise "must be opened" []
+    | Open a -> a
 
   let create a = ref (Open a)
 end
@@ -512,14 +514,15 @@ module Lev_fd = struct
 
   let close (t : t) =
     match !t with
-    | Closed _ -> ()
+    | Closed fd -> fd
     | Open { io; scheduler; fd; read; write; events = _ } ->
         t := Closed fd;
         Lev.Io.stop io scheduler.loop;
         Lev.Io.destroy io;
         Fd.close fd;
         close_queue scheduler.queue read;
-        close_queue scheduler.queue write
+        close_queue scheduler.queue write;
+        fd
 
   let make_cb t scheduler _ _ set =
     match !(Fdecl.get t) with
@@ -589,12 +592,14 @@ module Io = struct
         | Error (`Exn exn) -> Error (`Exn exn.exn))
 
   type 'a open_ = { mutable buffer : Buffer.t; kind : 'a kind; fd : fd }
-  type 'a t = 'a open_ State.t
+  type 'a t = ('a open_, Fd.t) State.t
 
   let fd (t : _ t) =
-    match (State.check_open t).fd with
-    | Blocking (_, fd) -> fd
-    | Non_blocking fd -> ( match !fd with Closed fd -> fd | Open f -> f.fd)
+    match !t with
+    | Closed fd -> fd
+    | Open { fd = Blocking (_, fd); _ } -> fd
+    | Open { fd = Non_blocking fd; _ } -> (
+        match !fd with Closed fd -> fd | Open f -> f.fd)
 
   let rec with_resize_buffer t ~len reserve_fail k =
     match Buffer.reserve t.buffer ~len with
@@ -720,17 +725,18 @@ module Io = struct
       | Non_blocking fd -> Lev_fd.close fd
       | Blocking (th, fd) ->
           Thread.close th;
-          Fd.close fd
+          Fd.close fd;
+          fd
     in
     fun (type a) (t : a t) ->
       match !t with
-      | State.Closed -> ()
+      | State.Closed _ -> ()
       | Open o ->
           (match (o.kind : _ kind) with
           | Read r -> r.eof <- true
           | Write _ -> () (* TODO *));
-          close_fd o.fd;
-          t := Closed
+          let fd = close_fd o.fd in
+          t := Closed fd
 
   module Reader = struct
     type t = input open_
