@@ -4,26 +4,57 @@ open Lev_fiber_util
 module Timestamp = Lev.Timestamp
 
 module Signal_watcher = struct
-  type t = { thread : Thread.t; old_sigmask : int list }
+  type t = {
+    thread : Thread.t;
+    old_sigmask : int list;
+    old_sigpipe : Sys.signal_behavior option;
+    old_sigchld : Sys.signal_behavior;
+    sigchld_watcher : Lev.Async.t;
+  }
 
   let stop_sig = Sys.sigusr2
-  let blocked_signals = [ Sys.sigchld; stop_sig ]
+
+  let blocked_signals =
+    [ Sys.sigchld; stop_sig ] |> List.sort ~compare:Int.compare
 
   let stop t =
     Unix.kill (Unix.getpid ()) stop_sig;
-    Thread.join t.thread
+    Thread.join t.thread;
+    let used_mask =
+      Unix.sigprocmask SIG_SETMASK t.old_sigmask
+      |> List.sort ~compare:Int.compare
+    in
+    Option.iter t.old_sigpipe ~f:(Sys.set_signal Sys.sigpipe);
+    Sys.set_signal Sys.sigchld t.old_sigchld;
+    if used_mask <> blocked_signals then
+      Code_error.raise "cannot restore old sigmask"
+        [
+          ("stop_sig", Dyn.int stop_sig);
+          ("sigchld", Dyn.int stop_sig);
+          ("used_mask", Dyn.(list int) used_mask);
+          ("old_sigmask", Dyn.(list int) t.old_sigmask);
+          ("blocked_signals", Dyn.(list int) blocked_signals);
+        ]
 
-  let run () =
+  let run (watcher, loop) =
     while true do
       let signal = Thread.wait_signal blocked_signals in
       if signal = Sys.sigusr2 then raise_notrace Thread.Exit
-      else Lev.Loop.feed_signal ~signal
+      else Lev.Async.send watcher loop
     done
 
-  let create () =
+  let create ~sigpipe ~sigchld_watcher ~loop =
+    let old_sigpipe =
+      match sigpipe with
+      | `Inherit -> None
+      | `Ignore -> Some (Sys.signal Sys.sigpipe Sys.Signal_ignore)
+    in
+    let old_sigchld =
+      Sys.signal Sys.sigchld (Sys.Signal_handle (fun (_ : int) -> ()))
+    in
     let old_sigmask = Unix.sigprocmask SIG_BLOCK blocked_signals in
-    let thread = Thread.create run () in
-    { thread; old_sigmask }
+    let thread = Thread.create run (sigchld_watcher, loop) in
+    { thread; old_sigmask; old_sigchld; old_sigpipe; sigchld_watcher }
 end
 
 module Process_watcher = struct
@@ -53,7 +84,7 @@ module Process_watcher = struct
               false)
   end
 
-  type watcher = Signal of Lev.Signal.t | Poll of Lev.Timer.t
+  type watcher = Signal of Lev.Async.t | Poll of Lev.Timer.t
   type t = { loop : Lev.Loop.t; table : Process_table.t; watcher : watcher }
 
   let create loop queue =
@@ -67,9 +98,9 @@ module Process_watcher = struct
         let watcher = Lev.Timer.create ~repeat:0.05 ~after:0.05 reap in
         Poll watcher
       else
-        let reap (_ : Lev.Signal.t) = Process_table.reap table queue in
-        let watcher = Lev.Signal.create reap ~signal:Sys.sigchld in
-        Lev.Signal.start watcher loop;
+        let reap (_ : Lev.Async.t) = Process_table.reap table queue in
+        let watcher = Lev.Async.create reap in
+        Lev.Async.start watcher loop;
         Lev.Loop.unref loop;
         Signal watcher
     in
@@ -91,8 +122,8 @@ module Process_watcher = struct
         Lev.Timer.stop s t.loop;
         Lev.Timer.destroy s
     | Signal s ->
-        Lev.Signal.stop s t.loop;
-        Lev.Signal.destroy s
+        Lev.Async.stop s t.loop;
+        Lev.Async.destroy s
 end
 
 type thread_job_status = Active | Complete | Cancelled
@@ -1079,14 +1110,12 @@ let yield () =
   Queue.push scheduler.queue (Fiber.Fill (ivar, ()));
   Fiber.Ivar.read ivar
 
-let run (type a) ?(flags = Lev.Loop.Flag.Set.singleton Nosigmask)
-    (f : unit -> a Fiber.t) : a =
+let run (type a) ?(sigpipe = `Inherit)
+    ?(flags = Lev.Loop.Flag.Set.singleton Nosigmask) (f : unit -> a Fiber.t) : a
+    =
   if not (Lev.Loop.Flag.Set.mem flags Nosigmask) then
     Code_error.raise "flags must include Nosigmask" [];
   let lev_loop = Lev.Loop.create ~flags () in
-  let signal_watcher =
-    if Sys.win32 then None else Some (Signal_watcher.create ())
-  in
   let thread_jobs = Queue.create () in
   let thread_mutex = Mutex.create () in
   let queue = Queue.create () in
@@ -1108,6 +1137,16 @@ let run (type a) ?(flags = Lev.Loop.Flag.Set.singleton Nosigmask)
   Lev.Async.start async lev_loop;
   Lev.Loop.unref lev_loop;
   let process_watcher = Process_watcher.create lev_loop queue in
+  let signal_watcher =
+    if Sys.win32 then None
+    else
+      let sigchld_watcher =
+        match process_watcher.watcher with
+        | Signal s -> s
+        | Poll _ -> assert false
+      in
+      Some (Signal_watcher.create ~sigpipe ~sigchld_watcher ~loop:lev_loop)
+  in
   let t =
     {
       loop = lev_loop;
@@ -1142,12 +1181,7 @@ let run (type a) ?(flags = Lev.Loop.Flag.Set.singleton Nosigmask)
     ~finally:(fun () ->
       Process_watcher.cleanup process_watcher;
       Lev.Async.stop async lev_loop;
-      (match signal_watcher with
-      | None -> ()
-      | Some sw ->
-          Signal_watcher.stop sw;
-          let (_ : int list) = Unix.sigprocmask SIG_SETMASK sw.old_sigmask in
-          ());
+      Option.iter signal_watcher ~f:Signal_watcher.stop;
       List.iter t.thread_workers ~f:(fun (Worker w) ->
           Worker.complete_tasks_and_stop w;
           Worker.join w);

@@ -192,13 +192,25 @@ let%expect_test "reading from closed pipe" =
 let%expect_test "writing to a closed pipe" =
   let r, w = Unix.pipe () in
   Unix.close r;
-  ( Lev_fiber.run @@ fun () ->
+  ( Lev_fiber.run ~sigpipe:`Ignore @@ fun () ->
     let* io = Io.create (Fd.create w `Blocking) Output in
     print_endline "writing to closed pipe";
-    let+ () =
+    let+ res =
+      let on_error (exn : Exn_with_backtrace.t) =
+        match exn.exn with
+        | Unix.Unix_error (error, _, _) ->
+            printfn "error: %s" @@ Unix.error_message error;
+            Fiber.return ()
+        | _ -> Exn_with_backtrace.reraise exn
+      in
+      Fiber.map_reduce_errors (module Monoid.Unit) ~on_error @@ fun () ->
       Io.with_write io ~f:(fun w ->
           Io.Writer.add_string w "foobar";
           Io.Writer.flush w)
     in
+    (match res with Error () -> () | Ok () -> assert false);
     print_endline "finished writing" );
-  [%expect {||}]
+  [%expect {|
+    writing to closed pipe
+    error: Broken pipe
+    finished writing |}]
