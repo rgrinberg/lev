@@ -121,7 +121,10 @@ module Io : sig
 
   val with_read : input t -> f:(Reader.t -> 'a Fiber.t) -> 'a Fiber.t
   val with_write : output t -> f:(Writer.t -> 'a Fiber.t) -> 'a Fiber.t
+
   val close : 'a t -> unit
+  (** close the underlying file descriptor, watchers, threads (if any) *)
+
   val pipe : ?cloexec:bool -> unit -> (input t * output t) Fiber.t
 
   val stdin : input t Fiber.t
