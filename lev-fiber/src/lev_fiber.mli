@@ -62,7 +62,9 @@ module Fd : sig
 
   val close : t -> unit
   val create : Unix.file_descr -> [ `Blocking | `Non_blocking of bool ] -> t
+
   val fd_exn : t -> Unix.file_descr
+  (** [fd_exn [Unix.EBADF] if the underlying FD is closed. *)
 end
 
 module Io : sig
