@@ -161,5 +161,9 @@ end
 val yield : unit -> unit Fiber.t
 (** [yield ()] wait for one iteration of the event loop *)
 
-val run : ?flags:Lev.Loop.Flag.Set.t -> (unit -> 'a Fiber.t) -> 'a
+val run :
+  ?sigpipe:[ `Inherit | `Ignore ] ->
+  ?flags:Lev.Loop.Flag.Set.t ->
+  (unit -> 'a Fiber.t) ->
+  'a
 (** If you set [flags] manually, you must include the [Nosigprocmask] flag *)
