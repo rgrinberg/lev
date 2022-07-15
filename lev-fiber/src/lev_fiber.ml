@@ -798,9 +798,7 @@ module Io = struct
           match res with
           | Error (`Exn (Unix.Unix_error (Unix.EAGAIN, _, _))) ->
               read t ~len ~dst_pos
-          | Error `Eof
-          | Ok 0
-          | Error (`Exn (Unix.Unix_error (Unix.EBADF, _, _))) ->
+          | Error `Eof | Ok 0 ->
               (match t.kind with Read b -> b.eof <- true);
               Buffer.commit t.buffer ~len:0;
               Fiber.return ()
