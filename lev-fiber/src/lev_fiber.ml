@@ -814,7 +814,8 @@ module Io = struct
     exception Found of int
 
     let read_char_exn t =
-      let b, { Buffer.Slice.pos; len = _ } = Expert.buffer t in
+      let b, { Buffer.Slice.pos; len } = Expert.buffer t in
+      assert (len > 0);
       let res = Bytes.get b pos in
       Expert.consume t ~len:1;
       res
