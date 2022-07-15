@@ -68,7 +68,7 @@ let%expect_test "read from pipe" =
     written to pipe
     read char c |}]
 
-let%expect_test "watch closed" =
+let%expect_test "read when write end closed" =
   let r, w = Unix.pipe ~cloexec:true () in
   Unix.close w;
   Unix.set_nonblock r;
@@ -101,23 +101,27 @@ let%expect_test "watch closed" =
       (fun io fd _events ->
         let b = Bytes.make 1 '0' in
         match Unix.read fd b 0 1 with
+        | exception Unix.Unix_error (EBADF, _, _) ->
+            print_endline "received EBADF";
+            Io.stop io loop
         | exception Unix.Unix_error (EAGAIN, _, _) -> assert false
-        | 0 ->
-            Lev.Io.stop io loop;
-            print_endline "read 0 bytes"
+        | 0 -> assert false
         | _ -> assert false)
       r
       (Io.Event.Set.create ~read:true ())
   in
   Io.start io_r loop;
   let check =
-    Check.create (fun _ ->
+    Check.create (fun check ->
         printf "closing after start\n";
         Unix.close w;
-        Unix.close r)
+        Unix.close r;
+        Check.stop check loop)
   in
   Check.start check loop;
   ignore (Loop.run loop Nowait);
+  ignore (Loop.run loop Nowait);
   [%expect {|
     closing after start
+    received EBADF
   |}]
