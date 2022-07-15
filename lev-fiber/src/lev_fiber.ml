@@ -622,7 +622,13 @@ module Io = struct
         | Error `Cancelled -> assert false
         | Error (`Exn exn) -> Error (`Exn exn.exn))
 
-  type 'a open_ = { mutable buffer : Buffer.t; kind : 'a kind; fd : fd }
+  type 'a open_ = {
+    mutable buffer : Buffer.t;
+    kind : 'a kind;
+    fd : fd;
+    mutable activity : [ `Busy | `Idle ];
+  }
+
   type 'a t = ('a open_, Fd.t) State.t
 
   let fd (t : _ t) =
@@ -718,7 +724,7 @@ module Io = struct
       | Input -> Read { eof = false }
       | Output -> Write { flush_counter = 0 }
     in
-    State.create { buffer; fd; kind }
+    State.create { buffer; fd; kind; activity = `Idle }
 
   let create (type a) (fd : Fd.t) (mode : a mode) =
     match fd.kind with
@@ -943,15 +949,20 @@ module Io = struct
       fun t -> Fiber.of_thunk (fun () -> loop t (Stdlib.Buffer.create 512))
   end
 
-  let with_read (t : input t) ~f =
+  let with_ t ~f =
     let* () = Fiber.return () in
     let t = State.check_open t in
-    f t
+    (match t.activity with
+    | `Busy -> Code_error.raise "Io.t is already busy" []
+    | `Idle -> t.activity <- `Busy);
+    Fiber.finalize
+      (fun () -> f t)
+      ~finally:(fun () ->
+        t.activity <- `Idle;
+        Fiber.return ())
 
-  let with_write (t : output t) ~f =
-    let* () = Fiber.return () in
-    let t = State.check_open t in
-    f t
+  let with_read (t : input t) ~f = with_ t ~f
+  let with_write (t : output t) ~f = with_ t ~f
 
   let pipe ?cloexec () : (input t * output t) Fiber.t =
     Fiber.of_thunk @@ fun () ->
