@@ -584,6 +584,11 @@ module Lev_fd = struct
 end
 
 module Io = struct
+  let callstack =
+    match Sys.getenv_opt "LEV_DEBUG" with
+    | None -> fun () -> None
+    | Some _ -> fun () -> Some (Printexc.get_callstack 15)
+
   type input = Input
   type output = Output
   type 'a mode = Input : input mode | Output : output mode
@@ -617,17 +622,17 @@ module Io = struct
         | Error `Cancelled -> assert false
         | Error (`Exn exn) -> Error (`Exn exn.exn))
 
-  type activity = Busy of Printexc.raw_backtrace | Idle
+  type activity = Idle | Busy of Printexc.raw_backtrace option
 
   type 'a open_ = {
     mutable buffer : Buffer.t;
     kind : 'a kind;
     fd : fd;
     mutable activity : activity;
-    source : Printexc.raw_backtrace;
+    source : Printexc.raw_backtrace option;
   }
 
-  type 'a t = ('a open_, Fd.t * Printexc.raw_backtrace) State.t
+  type 'a t = ('a open_, Fd.t * Printexc.raw_backtrace option) State.t
 
   let fd (t : _ t) =
     match !t with
@@ -715,43 +720,44 @@ module Io = struct
     let add_string t str = Buffer.Bytes.Writer.add_string t.buffer str
   end
 
-  let create_gen (type a) fd (mode : a mode) =
+  let create_gen (type a) ~source fd (mode : a mode) =
     let buffer = Buffer.create ~size:Buffer.default_size in
     let kind : a kind =
       match mode with
       | Input -> Read { eof = false }
       | Output -> Write { flush_counter = 0 }
     in
-    let source = Printexc.get_callstack 15 in
     State.create { buffer; fd; kind; activity = Idle; source }
 
   let create (type a) (fd : Fd.t) (mode : a mode) =
+    let source = callstack () in
     match fd.kind with
     | Non_blocking _ ->
         let+ fd = Lev_fd.create fd in
-        create_gen (Non_blocking fd) mode
+        create_gen ~source (Non_blocking fd) mode
     | Blocking ->
         let+ thread = Thread.create () in
-        create_gen (Blocking (thread, fd)) mode
+        create_gen ~source (Blocking (thread, fd)) mode
 
   let create_rw (fd : Fd.t) : (input t * output t) Fiber.t =
+    let source = callstack () in
     match fd.kind with
     | Non_blocking _ ->
         let+ fd =
           let+ fd = Lev_fd.create fd in
           Non_blocking fd
         in
-        let r = create_gen fd Input in
-        let w = create_gen fd Output in
+        let r = create_gen ~source fd Input in
+        let w = create_gen ~source fd Output in
         (r, w)
     | Blocking ->
         let* r =
           let+ thread = Thread.create () in
-          create_gen (Blocking (thread, fd)) Input
+          create_gen ~source (Blocking (thread, fd)) Input
         in
         let+ w =
           let+ thread = Thread.create () in
-          create_gen (Blocking (thread, fd)) Output
+          create_gen ~source (Blocking (thread, fd)) Output
         in
         (r, w)
 
@@ -949,28 +955,49 @@ module Io = struct
   end
 
   let with_ (type a) (t : a t) ~f =
+    let activity_source = callstack () in
     let* () = Fiber.return () in
     let t =
       match !(t : _ State.t) with
       | Open t -> t
       | Closed (_, source) ->
-          Code_error.raise "Lev_fiber.Io: already closed"
-            [ ("source", Dyn.string (Printexc.raw_backtrace_to_string source)) ]
+          let args =
+            match source with
+            | None -> []
+            | Some source ->
+                [
+                  ( "source",
+                    Dyn.string (Printexc.raw_backtrace_to_string source) );
+                ]
+          in
+          Code_error.raise "Lev_fiber.Io: already closed" args
     in
     (match t.activity with
+    | Idle -> t.activity <- Busy activity_source
     | Busy activity_source ->
-        Code_error.raise "Io.t is already busy"
-          [
-            ("source", Dyn.string (Printexc.raw_backtrace_to_string t.source));
-            ( "activity_source",
-              Dyn.string (Printexc.raw_backtrace_to_string activity_source) );
-            ( "kind",
-              Dyn.string
-                (match t.kind with Read _ -> "read" | Write _ -> "write") );
-          ]
-    | Idle ->
-        let activity_source = Printexc.get_callstack 15 in
-        t.activity <- Busy activity_source);
+        let args =
+          let args =
+            [
+              ( "kind",
+                Dyn.string
+                  (match t.kind with Read _ -> "read" | Write _ -> "write") );
+            ]
+          in
+          let args =
+            match t.source with
+            | None -> args
+            | Some source ->
+                ("source", Dyn.string (Printexc.raw_backtrace_to_string source))
+                :: args
+          in
+          match activity_source with
+          | None -> args
+          | Some activity_source ->
+              ( "activity_source",
+                Dyn.string (Printexc.raw_backtrace_to_string activity_source) )
+              :: args
+        in
+        Code_error.raise "Io.t is already busy" args);
     Fiber.finalize
       (fun () -> f t)
       ~finally:(fun () ->
