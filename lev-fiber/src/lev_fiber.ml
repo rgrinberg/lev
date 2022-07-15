@@ -956,7 +956,9 @@ module Io = struct
             [ ("source", Dyn.string (Printexc.raw_backtrace_to_string source)) ]
     in
     (match t.activity with
-    | `Busy -> Code_error.raise "Io.t is already busy" []
+    | `Busy ->
+        Code_error.raise "Io.t is already busy"
+          [ ("source", Dyn.string (Printexc.raw_backtrace_to_string t.source)) ]
     | `Idle -> t.activity <- `Busy);
     Fiber.finalize
       (fun () -> f t)
