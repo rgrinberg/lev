@@ -125,3 +125,25 @@ let%expect_test "watch closed" =
     closing after start
     received EBADF
   |}]
+
+let%expect_test "write to closed reader" =
+  let r, w = Unix.pipe ~cloexec:true () in
+  let loop = Loop.create ~flags:(Loop.Flag.Set.singleton (Backend Select)) () in
+  let old_sigpipe = Sys.signal Sys.sigpipe Sys.Signal_ignore in
+  Unix.close r;
+  let io =
+    Io.create
+      (fun io fd _ ->
+        let bytes = Bytes.of_string "foobar" in
+        match Unix.single_write fd bytes 0 (Bytes.length bytes) with
+        | exception Unix.Unix_error (Unix.EPIPE, _, _) ->
+            print_endline "received epipe";
+            Io.stop io loop
+        | _ -> assert false)
+      w
+      (Io.Event.Set.create ~write:true ())
+  in
+  Io.start io loop;
+  Loop.run_until_done loop;
+  Sys.set_signal Sys.sigpipe old_sigpipe;
+  [%expect {| received epipe |}]
