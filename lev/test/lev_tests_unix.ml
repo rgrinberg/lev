@@ -87,12 +87,12 @@ let%expect_test "read when write end closed" =
       (Io.Event.Set.create ~read:true ())
   in
   Io.start io_r loop;
-  ignore (Loop.run_until_done loop);
+  Loop.run_until_done loop;
   [%expect {|
     read 0 bytes
   |}]
 
-let%expect_test "watch closed" =
+let%expect_test "watch a closed fd" =
   let r, w = Unix.pipe ~cloexec:true () in
   Unix.set_nonblock r;
   let loop = Loop.create ~flags:(Loop.Flag.Set.singleton (Backend Select)) () in
@@ -104,8 +104,6 @@ let%expect_test "watch closed" =
         | exception Unix.Unix_error (EBADF, _, _) ->
             print_endline "received EBADF";
             Io.stop io loop
-        | exception Unix.Unix_error (EAGAIN, _, _) -> assert false
-        | 0 -> assert false
         | _ -> assert false)
       r
       (Io.Event.Set.create ~read:true ())
@@ -119,8 +117,10 @@ let%expect_test "watch closed" =
         Check.stop check loop)
   in
   Check.start check loop;
+  (* XXX why doesn't [run_until_done] work here? *)
   ignore (Loop.run loop Nowait);
   ignore (Loop.run loop Nowait);
+  Loop.run_until_done loop;
   [%expect {|
     closing after start
     received EBADF
