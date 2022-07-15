@@ -617,11 +617,13 @@ module Io = struct
         | Error `Cancelled -> assert false
         | Error (`Exn exn) -> Error (`Exn exn.exn))
 
+  type activity = Busy of Printexc.raw_backtrace | Idle
+
   type 'a open_ = {
     mutable buffer : Buffer.t;
     kind : 'a kind;
     fd : fd;
-    mutable activity : [ `Busy | `Idle ];
+    mutable activity : activity;
     source : Printexc.raw_backtrace;
   }
 
@@ -721,7 +723,7 @@ module Io = struct
       | Output -> Write { flush_counter = 0 }
     in
     let source = Printexc.get_callstack 15 in
-    State.create { buffer; fd; kind; activity = `Idle; source }
+    State.create { buffer; fd; kind; activity = Idle; source }
 
   let create (type a) (fd : Fd.t) (mode : a mode) =
     match fd.kind with
@@ -946,7 +948,7 @@ module Io = struct
       fun t -> Fiber.of_thunk (fun () -> loop t (Stdlib.Buffer.create 512))
   end
 
-  let with_ (t : _ t) ~f =
+  let with_ (type a) (t : a t) ~f =
     let* () = Fiber.return () in
     let t =
       match !(t : _ State.t) with
@@ -956,14 +958,23 @@ module Io = struct
             [ ("source", Dyn.string (Printexc.raw_backtrace_to_string source)) ]
     in
     (match t.activity with
-    | `Busy ->
+    | Busy activity_source ->
         Code_error.raise "Io.t is already busy"
-          [ ("source", Dyn.string (Printexc.raw_backtrace_to_string t.source)) ]
-    | `Idle -> t.activity <- `Busy);
+          [
+            ("source", Dyn.string (Printexc.raw_backtrace_to_string t.source));
+            ( "activity_source",
+              Dyn.string (Printexc.raw_backtrace_to_string activity_source) );
+            ( "kind",
+              Dyn.string
+                (match t.kind with Read _ -> "read" | Write _ -> "write") );
+          ]
+    | Idle ->
+        let activity_source = Printexc.get_callstack 15 in
+        t.activity <- Busy activity_source);
     Fiber.finalize
       (fun () -> f t)
       ~finally:(fun () ->
-        t.activity <- `Idle;
+        t.activity <- Idle;
         Fiber.return ())
 
   let with_read (t : input t) ~f = with_ t ~f
