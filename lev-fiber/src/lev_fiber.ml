@@ -162,11 +162,6 @@ module State = struct
   type ('a, 'b) t' = Open of 'a | Closed of 'b
   type ('a, 'b) t = ('a, 'b) t' ref
 
-  let check_open t =
-    match !t with
-    | Closed _ -> Code_error.raise "must be opened" []
-    | Open a -> a
-
   let create a = ref (Open a)
 end
 
@@ -627,13 +622,14 @@ module Io = struct
     kind : 'a kind;
     fd : fd;
     mutable activity : [ `Busy | `Idle ];
+    source : Printexc.raw_backtrace;
   }
 
-  type 'a t = ('a open_, Fd.t) State.t
+  type 'a t = ('a open_, Fd.t * Printexc.raw_backtrace) State.t
 
   let fd (t : _ t) =
     match !t with
-    | Closed fd -> fd
+    | Closed (fd, _) -> fd
     | Open { fd = Blocking (_, fd); _ } -> fd
     | Open { fd = Non_blocking fd; _ } -> (
         match !fd with Closed fd -> fd | Open f -> f.fd)
@@ -724,7 +720,8 @@ module Io = struct
       | Input -> Read { eof = false }
       | Output -> Write { flush_counter = 0 }
     in
-    State.create { buffer; fd; kind; activity = `Idle }
+    let source = Printexc.get_callstack 15 in
+    State.create { buffer; fd; kind; activity = `Idle; source }
 
   let create (type a) (fd : Fd.t) (mode : a mode) =
     match fd.kind with
@@ -773,7 +770,7 @@ module Io = struct
           | Read r -> r.eof <- true
           | Write _ -> () (* TODO *));
           let fd = close_fd o.fd in
-          t := Closed fd
+          t := Closed (fd, o.source)
 
   module Reader = struct
     type t = input open_
@@ -949,9 +946,15 @@ module Io = struct
       fun t -> Fiber.of_thunk (fun () -> loop t (Stdlib.Buffer.create 512))
   end
 
-  let with_ t ~f =
+  let with_ (t : _ t) ~f =
     let* () = Fiber.return () in
-    let t = State.check_open t in
+    let t =
+      match !(t : _ State.t) with
+      | Open t -> t
+      | Closed (_, source) ->
+          Code_error.raise "Lev_fiber.Io: already closed"
+            [ ("source", Dyn.string (Printexc.raw_backtrace_to_string source)) ]
+    in
     (match t.activity with
     | `Busy -> Code_error.raise "Io.t is already busy" []
     | `Idle -> t.activity <- `Busy);
