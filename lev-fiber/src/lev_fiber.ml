@@ -943,10 +943,12 @@ module Io = struct
   end
 
   let with_read (t : input t) ~f =
+    let* () = Fiber.return () in
     let t = State.check_open t in
     f t
 
   let with_write (t : output t) ~f =
+    let* () = Fiber.return () in
     let t = State.check_open t in
     f t
 
