@@ -100,11 +100,7 @@ module Session = struct
                 Io.Reader.Expert.consume reader ~len:len_read;
                 atom reader parser (len - len_read)
         in
-        let+ res =
-          Io.with_read in_channel ~f:(fun reader -> loop reader Stack.Empty)
-        in
-        (match res with None -> Io.close in_channel | Some _ -> ());
-        res
+        Io.with_read in_channel ~f:(fun reader -> loop reader Stack.Empty)
 
   let read t =
     match t.state with
