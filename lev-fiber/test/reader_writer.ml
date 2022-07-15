@@ -210,7 +210,8 @@ let%expect_test "writing to a closed pipe" =
     in
     (match res with Error () -> () | Ok () -> assert false);
     print_endline "finished writing" );
-  [%expect {|
+  [%expect
+    {|
     writing to closed pipe
     error: Broken pipe
     finished writing |}]
