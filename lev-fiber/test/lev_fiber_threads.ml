@@ -62,4 +62,4 @@ let%expect_test "deadlock" =
     assert false
   with Code_error.E e ->
     print_endline e.message;
-    [%expect {| deadlock |}]
+    [%expect {| Deadlock |}]

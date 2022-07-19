@@ -167,6 +167,7 @@ module Error : sig
         (** An error from the scheduler itself. Usually due to a bug *)
     | Already_reported
         (** An exception from the fiber was bubbled up to the toplevel *)
+    | Deadlock
 
   val ok_exn : ('a, t) result -> 'a
 end
