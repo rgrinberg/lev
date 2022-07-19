@@ -1166,13 +1166,16 @@ let yield () =
   Fiber.Ivar.read ivar
 
 module Error = struct
-  type t = Aborted of Exn_with_backtrace.t | Already_reported
+  type t = Aborted of Exn_with_backtrace.t | Already_reported | Deadlock
 
   let ok_exn = function
     | Ok s -> s
     | Error (Aborted exn) -> Exn_with_backtrace.reraise exn
     | Error Already_reported -> Code_error.raise "Already_reported" []
+    | Error Deadlock -> Code_error.raise "Deadlock" []
 end
+
+exception Deadlock
 
 let run (type a) ?(sigpipe = `Inherit)
     ?(flags = Lev.Loop.Flag.Set.singleton Nosigmask) (f : unit -> a Fiber.t) :
@@ -1229,7 +1232,7 @@ let run (type a) ?(sigpipe = `Inherit)
   let rec iter_or_deadlock q =
     match Nonempty_list.of_list (events q []) with
     | Some e -> e
-    | None -> Code_error.raise "deadlock" []
+    | None -> raise_notrace Deadlock
   and iter loop q =
     match Nonempty_list.of_list (events q []) with
     | Some e -> e
@@ -1251,6 +1254,7 @@ let run (type a) ?(sigpipe = `Inherit)
     match Fiber.run f ~iter:(fun () -> iter lev_loop queue) with
     | Error () -> Error Already_reported
     | Ok s -> Ok s
+    | exception Deadlock -> Error Deadlock
     | exception exn ->
         let exn = Exn_with_backtrace.capture exn in
         Error (Aborted exn)

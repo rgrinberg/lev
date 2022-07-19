@@ -7,7 +7,7 @@ let%expect_test "toplevel exception" =
      let _ = raise Exit in
      Fiber.return ()
    with
-  | Ok () -> assert false
+  | Error Deadlock | Ok () -> assert false
   | Error Already_reported -> print_endline "raised Exit"
   | Error (Aborted _) -> assert false);
   [%expect
@@ -31,7 +31,7 @@ let%expect_test "" =
          print_endline "t2: running";
          Fiber.return ())
    with
-  | Ok () -> assert false
+  | Error Deadlock | Ok () -> assert false
   | Error Already_reported -> print_endline "raised Exit"
   | Error (Aborted _) -> assert false);
   [%expect
