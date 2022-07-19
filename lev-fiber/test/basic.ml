@@ -1,17 +1,27 @@
+let () = Printexc.record_backtrace false
+
 let%expect_test "toplevel exception" =
-  (try
-     ( Lev_fiber.run @@ fun () ->
-       print_endline "raising Exit";
-       let _ = raise Exit in
-       Fiber.return () );
-     assert false
-   with Exit -> print_endline "caught Exit");
-  [%expect {|
+  (match
+     Lev_fiber.run @@ fun () ->
+     print_endline "raising Exit";
+     let _ = raise Exit in
+     Fiber.return ()
+   with
+  | Ok () -> assert false
+  | Error Already_reported -> print_endline "raised Exit"
+  | Error (Aborted _) -> assert false);
+  [%expect
+    {|
     raising Exit
-    caught Exit |}]
+    /-----------------------------------------------------------------------
+    | Internal error: Uncaught exception.
+    | Stdlib.Exit
+    \-----------------------------------------------------------------------
+
+    raised Exit |}]
 
 let%expect_test "" =
-  (try
+  (match
      Lev_fiber.run @@ fun () ->
      Fiber.fork_and_join_unit
        (fun () ->
@@ -20,7 +30,17 @@ let%expect_test "" =
        (fun () ->
          print_endline "t2: running";
          Fiber.return ())
-   with Exit -> print_endline "caught Exit");
-  [%expect {|
+   with
+  | Ok () -> assert false
+  | Error Already_reported -> print_endline "raised Exit"
+  | Error (Aborted _) -> assert false);
+  [%expect
+    {|
     t1: raising
-    caught Exit |}]
+    /-----------------------------------------------------------------------
+    | Internal error: Uncaught exception.
+    | Stdlib.Exit
+    \-----------------------------------------------------------------------
+
+    t2: running
+    raised Exit |}]
