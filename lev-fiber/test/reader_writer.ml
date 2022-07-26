@@ -216,7 +216,8 @@ let%expect_test "writing to a closed pipe" =
     (match res with Error () -> () | Ok () -> assert false);
     print_endline "finished writing" )
   |> Lev_fiber.Error.ok_exn;
-  [%expect{|
+  [%expect
+    {|
     writing to closed pipe
     error: ("fd closed unflushed", { remaining = 6; contents = "foobar\n\
                                                          " })
