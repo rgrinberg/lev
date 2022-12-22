@@ -37,6 +37,10 @@
  * either the BSD or the GPL.
  */
 
+#pragma clang diagnostic ignored "-Wunused-value"
+#pragma clang diagnostic ignored "-Wcomment"
+#pragma clang diagnostic ignored "-Wextern-initializer"
+
 /* this big block deduces configuration from config.h */
 #ifndef EV_STANDALONE
 # ifdef EV_CONFIG_H
