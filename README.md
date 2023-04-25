@@ -1,7 +1,11 @@
 # Lev - OCaml bindings to libev
 
+[![Coverage Status][coveralls-badge]][coveralls]
+
 [libev]: http://software.schmorp.de/pkg/libev.html
 [libevdoc]: http://pod.tst.eu/http://cvs.schmorp.de/libev/ev.pod
+[coveralls]: https://coveralls.io/github/rgrinberg/lev?branch=master
+[coveralls-badge]: https://coveralls.io/repos/github/rgrinberg/lev/badge.svg?branch=master
 
 ## Abstract
 
