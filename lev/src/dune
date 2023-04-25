@@ -24,4 +24,6 @@
   (backend bisect_ppx))
  (foreign_stubs
   (language c)
-  (names lev_stubs)))
+  (names lev_stubs))
+ (instrumentation
+  (backend bisect_ppx)))

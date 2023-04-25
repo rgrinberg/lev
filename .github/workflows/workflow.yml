@@ -49,3 +49,37 @@ jobs:
       - run: opam install --deps-only --with-doc --with-test .
       - run: opam exec -- dune build
       - run: opam exec -- dune runtest
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ocaml-compiler:
+          - 4.14.x
+    steps:
+      - uses: actions/checkout@v3
+      - name: Use OCaml ${{ matrix.ocaml-compiler }}
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+          opam-local-packages: lev.opam lev-fiber.opam lev-fiber-csexp.opam
+
+      - name: Set git user
+        run: |
+          git config --global user.name github-actions[bot]
+          git config --global user.email github-actions[bot]@users.noreply.github.com
+    
+      - name: Install deps
+        run: |
+          opam install . --deps-only --with-doc --with-test
+          opam install bisect_ppx
+      - name: Run and send coverage
+        run: |
+          opam exec -- dune build --instrument-with bisect_ppx --force @runtest
+          opam exec -- bisect-ppx-report send-to Coveralls
+        continue-on-error: true
+        env:
+          COVERALLS_REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PULL_REQUEST_NUMBER: ${{ github.event.number }}
