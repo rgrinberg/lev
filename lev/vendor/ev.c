@@ -510,6 +510,11 @@
 # endif
 #endif
 
+#if __FreeBSD__
+#define EV_USE_INOTIFY 0
+#define EV_USE_KQUEUE 1
+#endif
+
 #if EV_USE_INOTIFY
 # include <sys/statfs.h>
 # include <sys/inotify.h>
