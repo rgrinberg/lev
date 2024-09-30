@@ -1,4 +1,21 @@
-open Stdune
+include struct
+  open Stdune
+  module List = List
+  module Int = Int
+  module Option = Option
+  module Code_error = Code_error
+  module Pid = Pid
+  module Table = Table
+  module Exn_with_backtrace = Exn_with_backtrace
+  module Queue = Queue
+  module Fdecl = Fdecl
+  module Bytes = Bytes
+  module Nonempty_list = Nonempty_list
+  module Monoid = Monoid
+
+  let reraise = reraise
+end
+
 open Fiber.O
 open Lev_fiber_util
 module Timestamp = Lev.Timestamp
