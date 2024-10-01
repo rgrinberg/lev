@@ -3,6 +3,7 @@
  (modules lev_tests sockets)
  (libraries
   lev
+  unix
   ;; This is because of the (implicit_transitive_deps false)
   ;; in dune-project
   ppx_expect.config
@@ -19,6 +20,7 @@
  (modules lev_tests_unix)
  (libraries
   lev
+  unix
   ;; This is because of the (implicit_transitive_deps false)
   ;; in dune-project
   ppx_expect.config
