@@ -510,13 +510,13 @@
 # endif
 #endif
 
-#if __FreeBSD__
-#define EV_USE_INOTIFY 0
-#define EV_USE_KQUEUE 1
-#endif
-
 #if EV_USE_INOTIFY
-# include <sys/statfs.h>
+/* FreeBSD defines statfs(2) in <sys/mount.h> */
+# ifdef __FreeBSD__
+#  include <sys/mount.h>
+# else
+#  include <sys/statfs.h>
+# endif
 # include <sys/inotify.h>
 /* some very old inotify.h headers don't have IN_DONT_FOLLOW */
 # ifndef IN_DONT_FOLLOW
