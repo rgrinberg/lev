@@ -4,7 +4,6 @@ include struct
   module Int = Int
   module Option = Option
   module Code_error = Code_error
-  module Pid = Pid
   module Table = Table
   module Exn_with_backtrace = Exn_with_backtrace
   module Queue = Queue
@@ -76,10 +75,10 @@ end
 
 module Process_watcher = struct
   module Process_table = struct
-    type process = { pid : Pid.t; ivar : Unix.process_status Fiber.Ivar.t }
-    type t = { loop : Lev.Loop.t; active : (Pid.t, process) Table.t }
+    type process = { pid : int; ivar : Unix.process_status Fiber.Ivar.t }
+    type t = { loop : Lev.Loop.t; active : (int, process) Table.t }
 
-    let create loop = { loop; active = Table.create (module Pid) 16 }
+    let create loop = { loop; active = Table.create (module Int) 16 }
 
     let spawn t pid =
       Lev.Loop.ref t.loop;
@@ -92,7 +91,7 @@ module Process_watcher = struct
 
     let reap t queue =
       Table.filteri_inplace t.active ~f:(fun ~key:pid ~data:process ->
-          let pid, status = Unix.waitpid [ WNOHANG ] (Pid.to_int pid) in
+          let pid, status = Unix.waitpid [ WNOHANG ] pid in
           match pid with
           | 0 -> true
           | _ ->
@@ -446,7 +445,6 @@ module Timer = struct
 end
 
 let waitpid ~pid =
-  let pid = Pid.of_int pid in
   let* t = Fiber.Var.get_exn t in
   let ivar = Process_watcher.waitpid t.process_watcher ~pid in
   Fiber.Ivar.read ivar
